@@ -1,0 +1,86 @@
+# Show configuration — the tuning surface. Edit and restart; no code changes.
+# Times in seconds, positions in meters (top-down, volcano center = 0,0).
+
+[show]
+frame_rate = 40
+pyro_enabled = false   # software arm default: ALWAYS false; armed nightly via web UI
+log_dir = "logs"
+
+[phases]
+p_erupt = 0.7          # from active: escalate vs. fizzle back to dormant
+eruption_duration = 20.0
+cooldown = 60.0
+
+[phases.dwell.dormant]
+t_min = 120.0
+t_max = 600.0
+k = 2.0                # Weibull shape > 1: rising hazard
+scale = 300.0
+
+[phases.dwell.active]
+t_min = 30.0
+t_max = 180.0
+k = 2.0
+scale = 90.0
+
+# --- Fixtures -----------------------------------------------------------
+# Channel maps are PROVISIONAL until confirmed against printed manuals
+# (DESIGN.md open items). Offsets are 0-based from the fixture's address.
+
+[fixtures.flame]
+address = 1
+channels = { safety = 0, fire = 1 }   # H-E01A: safety ch must hold 102-153 to arm
+pyro = true
+position = [0.0, 0.5]
+
+[fixtures.co2]
+address = 10
+channels = { jet = 0 }                # MK-C09: single trigger channel
+pyro = true
+position = [0.0, -0.5]
+
+[fixtures.fogger]
+address = 20
+channels = { fog = 0, red = 1, green = 2, blue = 3 }  # MK-F01: confirm, likely 8ch
+position = [0.0, 0.0]
+
+# OPPSK 36x1W RGB pars — confirm channel map from boxed manual (~7ch mode).
+[fixtures.par1]
+address = 30
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [1.5, 1.5]
+
+[fixtures.par2]
+address = 37
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [-1.5, 1.5]
+
+[fixtures.par3]
+address = 44
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [1.5, -1.5]
+
+[fixtures.par4]
+address = 51
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [-1.5, -1.5]
+
+[fixtures.par5]
+address = 58
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [3.0, 0.0]
+
+[fixtures.par6]
+address = 65
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [-3.0, 0.0]
+
+[fixtures.par7]
+address = 72
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [0.0, 3.0]
+
+[fixtures.par8]
+address = 79
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [0.0, -3.0]

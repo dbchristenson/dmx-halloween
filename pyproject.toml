@@ -1,0 +1,27 @@
+[project]
+name = "dmx-volcano"
+version = "0.1.0"
+description = "Stochastic DMX show controller for a Halloween volcano (flame, CO2, fog, LEDs)"
+readme = "README.md"
+authors = [
+    { name = "dbchristenson", email = "dbchristenson@uchicago.edu" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.141.1",
+    "pyserial>=3.5",
+    "scipy>=1.18.0",
+    "uvicorn[standard]>=0.52.1",
+]
+
+[project.scripts]
+dmx-volcano = "dmx_volcano.show:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
