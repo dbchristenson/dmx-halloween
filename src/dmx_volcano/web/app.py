@@ -1,44 +1,74 @@
-"""FastAPI control page + visualizer endpoints (skeleton).
+"""Operator control page + 2D visualizer.
 
-Serves the operator page: status, manual eruption trigger, software arm/
-disarm (the second step of two-step arming), and the frame stream for the
-2D top-down visualizer. Wiring this to the running show loop (shared state
-across the uvicorn thread) is the next work item — endpoints are stubs
-until then.
+The web thread never touches the wire: it reads a copy of the latest frame
+under the lock and submits *requests* (trigger/arm/disarm) that the show
+loop and SafetyGate adjudicate. Arming here is only the software half of
+two-step arming — the physical switch is the other half.
 """
 
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
-app = FastAPI(title="DMX Volcano")
+from ..state import ShowState
 
-
-@app.get("/status")
-def status() -> dict:
-    # TODO: wire to live PhaseMachine/SafetyGate state.
-    return {
-        "phase": "dormant",
-        "time_in_phase": 0.0,
-        "armed": False,
-        "eruptions_tonight": 0,
-    }
+INDEX_PATH = Path(__file__).parent / "static" / "index.html"
 
 
-@app.post("/trigger")
-def trigger() -> dict:
-    """Manual eruption request — routed through PhaseMachine.request_eruption,
-    which applies the same cooldown/arming gates as automatic transitions."""
-    # TODO: machine.request_eruption(); log operator action.
-    return {"accepted": False, "reason": "not wired up yet"}
+def create_app(state: ShowState) -> FastAPI:
+    app = FastAPI(title="DMX Volcano")
 
+    @app.get("/", response_class=HTMLResponse)
+    def index() -> str:
+        return INDEX_PATH.read_text()
 
-@app.post("/arm")
-def arm() -> dict:
-    """Software half of two-step arming. Physical switch is the other half."""
-    # TODO: gate.arm(); log operator action.
-    return {"armed": False, "reason": "not wired up yet"}
+    @app.get("/api/layout")
+    def layout() -> dict:
+        return {
+            "fixtures": [
+                {
+                    "name": f.name,
+                    "position": f.position,
+                    "pyro": f.pyro,
+                    "channels": {name: f.channel(name) for name in f.channels},
+                }
+                for f in state.rig.fixtures.values()
+            ]
+        }
 
+    @app.get("/api/state")
+    def show_state() -> dict:
+        with state.lock:
+            frame = list(state.latest_frame)
+            now = state.now
+        machine = state.machine
+        return {
+            "phase": machine.phase.value,
+            "time_in_phase": max(0.0, now - machine.entered_at),
+            "sampled_dwell": machine.dwell,
+            "cooldown_remaining": max(0.0, machine.cooldown_until - now),
+            "armed": state.gate.pyro_enabled,
+            "eruption_count": state.eruption_count,
+            "frame": frame,
+        }
 
-@app.post("/disarm")
-def disarm() -> dict:
-    # TODO: gate.disarm(); log operator action.
-    return {"armed": False}
+    @app.post("/api/trigger")
+    def trigger() -> dict:
+        state.machine.request_eruption()
+        state.log.write("operator", action="trigger")
+        return {"requested": True}
+
+    @app.post("/api/arm")
+    def arm() -> dict:
+        state.gate.arm()
+        state.log.write("operator", action="arm")
+        return {"armed": True}
+
+    @app.post("/api/disarm")
+    def disarm() -> dict:
+        state.gate.disarm()
+        state.log.write("operator", action="disarm")
+        return {"armed": False}
+
+    return app

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DMX Volcano</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: #0b0b10; color: #e8e4dc;
+    font: 15px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh; padding: 1.25rem; gap: 1rem;
+  }
+  h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #b8b2a6; }
+  #stage { background: #121218; border: 1px solid #26262e; border-radius: 12px; max-width: 100%; }
+  #panel {
+    display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; align-items: center;
+    justify-content: center; background: #15151c; border: 1px solid #26262e;
+    border-radius: 12px; padding: .75rem 1.25rem;
+  }
+  .stat { text-align: center; min-width: 5.5rem; }
+  .stat .v { font-size: 1.2rem; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .stat .l { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #837e73; }
+  #phase.dormant  { color: #e05a3a; }
+  #phase.active   { color: #f0a030; }
+  #phase.eruption { color: #ffd23f; }
+  button {
+    font: inherit; font-weight: 600; color: #0b0b10; border: 0; border-radius: 8px;
+    padding: .55rem 1.1rem; cursor: pointer; background: #e05a3a;
+  }
+  button:hover { filter: brightness(1.1); }
+  #armBtn { background: #3a3f4a; color: #e8e4dc; }
+  #armBtn.armed { background: #ffd23f; color: #0b0b10; }
+  #armed-badge { font-size: .75rem; letter-spacing: .1em; padding: .2rem .6rem; border-radius: 99px;
+    background: #23262e; color: #837e73; }
+  #armed-badge.armed { background: #5a1f14; color: #ffd23f; }
+</style>
+</head>
+<body>
+<h1>DMX Volcano</h1>
+<canvas id="stage" width="640" height="640"></canvas>
+<div id="panel">
+  <div class="stat"><div class="v" id="phase">—</div><div class="l">phase</div></div>
+  <div class="stat"><div class="v" id="tip">0s</div><div class="l">in phase</div></div>
+  <div class="stat"><div class="v" id="dwell">—</div><div class="l">dwell</div></div>
+  <div class="stat"><div class="v" id="count">0</div><div class="l">eruptions</div></div>
+  <span id="armed-badge">DISARMED</span>
+  <button id="triggerBtn">Trigger eruption</button>
+  <button id="armBtn">Arm pyro</button>
+</div>
+<script>
+const canvas = document.getElementById("stage");
+const ctx = canvas.getContext("2d");
+const PX_PER_M = 70, CX = 320, CY = 320;
+let layout = null, armed = false;
+
+const px = (p) => [CX + p[0] * PX_PER_M, CY - p[1] * PX_PER_M];
+const chv = (frame, ch) => frame[ch - 1] || 0;
+
+function drawVolcano() {
+  ctx.save();
+  const g = ctx.createRadialGradient(CX, CY, 20, CX, CY, 120);
+  g.addColorStop(0, "#2a1c14"); g.addColorStop(1, "#17130f");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(CX, CY, 120, 0, 7); ctx.fill();
+  ctx.strokeStyle = "#3d2b1c"; ctx.lineWidth = 3; ctx.stroke();
+  ctx.beginPath(); ctx.arc(CX, CY, 42, 0, 7);
+  ctx.fillStyle = "#0e0a08"; ctx.fill(); ctx.strokeStyle = "#4a2a20"; ctx.stroke();
+  ctx.restore();
+}
+
+function drawPar(f, frame) {
+  const [x, y] = px(f.position);
+  const dim = chv(frame, f.channels.dimmer) / 255;
+  const r = chv(frame, f.channels.red), gc = chv(frame, f.channels.green), b = chv(frame, f.channels.blue);
+  if (dim > 0.01) {
+    const glow = ctx.createRadialGradient(x, y, 2, x, y, 44);
+    glow.addColorStop(0, `rgba(${r},${gc},${b},${0.85 * dim})`);
+    glow.addColorStop(1, `rgba(${r},${gc},${b},0)`);
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(x, y, 44, 0, 7); ctx.fill();
+  }
+  ctx.fillStyle = "#2b2b33"; ctx.strokeStyle = "#55545e";
+  ctx.beginPath(); ctx.arc(x, y, 7, 0, 7); ctx.fill(); ctx.stroke();
+}
+
+function drawFogger(f, frame) {
+  const [x, y] = px(f.position);
+  const fog = chv(frame, f.channels.fog) / 255;
+  if (fog > 0.02) {
+    for (let i = 0; i < 3; i++) {
+      const t = Date.now() / 900 + i * 2.1;
+      const dx = Math.sin(t) * 14 * (i + 1), dy = -12 * i - 8 * Math.abs(Math.cos(t));
+      const cloud = ctx.createRadialGradient(x + dx, y + dy, 2, x + dx, y + dy, 26 + 10 * i);
+      cloud.addColorStop(0, `rgba(190,190,200,${0.30 * fog})`);
+      cloud.addColorStop(1, "rgba(190,190,200,0)");
+      ctx.fillStyle = cloud;
+      ctx.beginPath(); ctx.arc(x + dx, y + dy, 26 + 10 * i, 0, 7); ctx.fill();
+    }
+  }
+  ctx.font = "16px sans-serif"; ctx.textAlign = "center";
+  ctx.globalAlpha = 0.9; ctx.fillText("🌫", x, y + 6); ctx.globalAlpha = 1;
+}
+
+function drawCo2(f, frame) {
+  const [x, y] = px(f.position);
+  const jet = chv(frame, f.channels.jet) / 255;
+  if (jet > 0.02) {
+    ctx.save();
+    ctx.globalAlpha = 0.85 * jet;
+    const beam = ctx.createLinearGradient(x, y, x, y - 130);
+    beam.addColorStop(0, "rgba(235,245,255,.95)"); beam.addColorStop(1, "rgba(235,245,255,0)");
+    ctx.fillStyle = beam;
+    ctx.beginPath();
+    ctx.moveTo(x - 6, y); ctx.lineTo(x - 22, y - 130); ctx.lineTo(x + 22, y - 130); ctx.lineTo(x + 6, y);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.font = "16px sans-serif"; ctx.textAlign = "center"; ctx.fillText("❄️", x, y + 6);
+}
+
+function drawFlame(f, frame) {
+  const [x, y] = px(f.position);
+  const fire = chv(frame, f.channels.fire) / 255;
+  const safety = chv(frame, f.channels.safety);
+  const safeOpen = safety >= 102 && safety <= 153;
+  if (fire > 0.02 && safeOpen) {
+    const h = 100 + 40 * Math.random();
+    ctx.save(); ctx.globalAlpha = 0.9 * fire;
+    const flame = ctx.createLinearGradient(x, y, x, y - h);
+    flame.addColorStop(0, "#ffdf60"); flame.addColorStop(.5, "#ff7b2d"); flame.addColorStop(1, "rgba(220,40,10,0)");
+    ctx.fillStyle = flame;
+    ctx.beginPath();
+    ctx.moveTo(x - 12, y);
+    ctx.quadraticCurveTo(x - 18, y - h * .5, x, y - h);
+    ctx.quadraticCurveTo(x + 18, y - h * .5, x + 12, y);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.font = "16px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🔥", x, y + 6);
+  ctx.fillStyle = safeOpen ? "#ffd23f" : "#3a3f4a";
+  ctx.beginPath(); ctx.arc(x + 14, y - 10, 3.5, 0, 7); ctx.fill();
+}
+
+function draw(frame) {
+  ctx.clearRect(0, 0, 640, 640);
+  drawVolcano();
+  for (const f of layout.fixtures) {
+    if (f.name.startsWith("par")) drawPar(f, frame);
+    else if (f.name === "fogger") drawFogger(f, frame);
+    else if (f.name === "co2") drawCo2(f, frame);
+    else if (f.name === "flame") drawFlame(f, frame);
+  }
+}
+
+async function tick() {
+  try {
+    const s = await (await fetch("/api/state")).json();
+    const phaseEl = document.getElementById("phase");
+    phaseEl.textContent = s.phase;
+    phaseEl.className = s.phase;
+    document.getElementById("tip").textContent = s.time_in_phase.toFixed(0) + "s";
+    document.getElementById("dwell").textContent = s.sampled_dwell ? s.sampled_dwell.toFixed(0) + "s" : "—";
+    document.getElementById("count").textContent = s.eruption_count;
+    armed = s.armed;
+    const badge = document.getElementById("armed-badge");
+    badge.textContent = armed ? "ARMED" : "DISARMED";
+    badge.className = armed ? "armed" : "";
+    const armBtn = document.getElementById("armBtn");
+    armBtn.textContent = armed ? "Disarm pyro" : "Arm pyro";
+    armBtn.className = armed ? "armed" : "";
+    if (layout) draw(s.frame);
+  } catch (e) { /* engine restarting; keep polling */ }
+}
+
+document.getElementById("triggerBtn").onclick = () => fetch("/api/trigger", { method: "POST" });
+document.getElementById("armBtn").onclick = () => {
+  if (!armed && !confirm("Arm pyro? Physical switch must also be on. Confirm operators are in position.")) return;
+  fetch(armed ? "/api/disarm" : "/api/arm", { method: "POST" });
+};
+
+(async () => {
+  layout = await (await fetch("/api/layout")).json();
+  setInterval(tick, 100);
+})();
+</script>
+</body>
+</html>

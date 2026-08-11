@@ -17,14 +17,15 @@ class Cue:
 
 
 # Placeholder timeline — tune against the real rig during rehearsals.
-# flame_burst durations must stay within safety.MAX_BURST["flame"].
+# Pyro cues must respect safety.MAX_BURST and MIN_GAP (measured burst-end to
+# burst-start) or the gate will deny them — the gate wins, by design.
 ERUPTION = [
     Cue(0.0, "sound", {"file": "eruption.wav"}),
     Cue(0.0, "pars", {"color": (255, 30, 0), "strobe_hz": 8}),
     Cue(2.0, "fog", {"level": 255}),
     Cue(4.0, "co2_burst", {"duration": 1.5}),
     Cue(5.0, "flame_burst", {"duration": 0.8}),
-    Cue(7.5, "flame_burst", {"duration": 0.8}),
+    Cue(9.0, "flame_burst", {"duration": 0.8}),  # >= 3s after first burst ends
     Cue(12.0, "fade", {"to": "dormant", "over": 8.0}),
 ]
 
