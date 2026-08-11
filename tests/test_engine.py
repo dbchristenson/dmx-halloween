@@ -1,7 +1,9 @@
 """End-to-end: cues -> safety gate -> wire bytes, over simulated time.
 
 These tests step the real ShowEngine at 40Hz through full eruptions and
-assert on the exact frames the driver would transmit.
+assert on the exact frames the driver would transmit. Manual triggers pass
+through the fixed 30s IMMINENT warning phase, so eruption cue times are
+offset by E (imminent_duration) below.
 """
 
 from pathlib import Path
@@ -9,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from dmx_volcano.driver.fake import FakeDriver
+from dmx_volcano.phases import Phase
 from dmx_volcano.show import FLAME_SAFETY_ARM_VALUE, build_engine
 
 CONFIG = Path(__file__).resolve().parents[1] / "config" / "show.toml"
@@ -17,7 +20,7 @@ DT = 1 / 40
 
 @pytest.fixture
 def engine(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)  # EventLog writes logs/ under cwd
+    monkeypatch.chdir(tmp_path)  # EventLog and CO2 state write under cwd
     eng, state, _ = build_engine(CONFIG, FakeDriver())
     eng.machine.start(0.0)
     return eng
@@ -37,42 +40,50 @@ def near_edge(t: float, edges: tuple[float, ...]) -> bool:
     return any(abs(t - e) < 2 * DT for e in edges)
 
 
-def fire_values(engine, frames):
-    ch = engine.rig["flame"].channel("fire")
-    return [(t, f[ch - 1]) for t, f in frames]
+def test_manual_trigger_passes_through_imminent(engine):
+    engine.gate.arm()
+    engine.machine.request_eruption()
+    E = engine.machine.config.imminent_duration
+    run(engine, 0.0, E - 0.5)
+    assert engine.machine.phase is Phase.IMMINENT
+    run(engine, E - 0.5 + DT, E + 1.0)
+    assert engine.machine.phase is Phase.ERUPTION
 
 
 def test_armed_eruption_fires_flame_only_in_cue_windows(engine):
     engine.gate.arm()
     engine.machine.request_eruption()
-    frames = run(engine, 0.0, 21.0)
+    E = engine.machine.config.imminent_duration
+    frames = run(engine, 0.0, E + 21.0)
 
     safety_ch = engine.rig["flame"].channel("safety")
     fire_ch = engine.rig["flame"].channel("fire")
     co2_ch = engine.rig["co2"].channel("jet")
 
-    # Cue timeline: flame bursts at t=5 and t=9 (0.8s), co2 at t=4 (1.5s).
-    flame_edges = (5.0, 5.8, 9.0, 9.8)
-    co2_edges = (4.0, 5.5)
+    # Cue timeline: flame bursts at t=5 and t=9 (0.8s), co2 at t=4 (1.5s),
+    # all relative to eruption start at t=E.
+    flame_edges = (E + 5.0, E + 5.8, E + 9.0, E + 9.8)
+    co2_edges = (E + 4.0, E + 5.5)
     for t, frame in frames:
         fire = frame[fire_ch - 1]
         if not near_edge(t, flame_edges):
-            in_window = (5.0 <= t < 5.8) or (9.0 <= t < 9.8)
+            in_window = (E + 5.0 <= t < E + 5.8) or (E + 9.0 <= t < E + 9.8)
             if in_window:
                 assert fire == 255, f"flame should burn at t={t:.2f}"
                 assert frame[safety_ch - 1] == FLAME_SAFETY_ARM_VALUE
             else:
                 assert fire == 0, f"flame leaked at t={t:.2f}"
                 assert frame[safety_ch - 1] == 0
-        if not near_edge(t, co2_edges) and not (4.0 <= t < 5.5):
+        if not near_edge(t, co2_edges) and not (E + 4.0 <= t < E + 5.5):
             assert frame[co2_ch - 1] == 0, f"co2 leaked at t={t:.2f}"
 
-    assert any(f[co2_ch - 1] == 255 for t, f in frames if 4.0 <= t < 5.5)
+    assert any(f[co2_ch - 1] == 255 for t, f in frames if E + 4.0 <= t < E + 5.5)
 
 
 def test_disarmed_eruption_never_puts_pyro_on_the_wire(engine):
     engine.machine.request_eruption()
-    frames = run(engine, 0.0, 21.0)
+    E = engine.machine.config.imminent_duration
+    frames = run(engine, 0.0, E + 21.0)
     pyro = engine.rig.pyro_channels()
     for t, frame in frames:
         for ch in pyro:
@@ -85,19 +96,48 @@ def test_disarmed_eruption_never_puts_pyro_on_the_wire(engine):
 def test_disarm_mid_burst_kills_flame_next_frame(engine):
     engine.gate.arm()
     engine.machine.request_eruption()
-    run(engine, 0.0, 5.2)  # into the first flame burst
+    E = engine.machine.config.imminent_duration
+    run(engine, 0.0, E + 5.2)  # into the first flame burst
     fire_ch = engine.rig["flame"].channel("fire")
     assert engine.driver.last_frame[fire_ch - 1] == 255
     engine.gate.disarm()
-    engine.step(5.25)
+    engine.step(E + 5.25)
     assert engine.driver.last_frame[fire_ch - 1] == 0
 
 
-def test_eruption_count_and_cooldown(engine):
+def test_eruption_count_cooldown_and_co2_usage(engine):
     engine.gate.arm()
     engine.machine.request_eruption()
-    run(engine, 0.0, 25.0)  # eruption (20s) ends into cooldown
+    E = engine.machine.config.imminent_duration
+    run(engine, 0.0, E + 25.0)  # imminent + eruption (20s) ends into cooldown
     assert engine.state.eruption_count == 1
+    # The 1.5s CO2 cue burned duration * rate.
+    assert engine.co2.used_kg == pytest.approx(1.5 * engine.co2.rate_kg_per_s)
     engine.machine.request_eruption()  # inside 60s cooldown -> ignored
-    run(engine, 25.0, 30.0)
+    run(engine, E + 25.0, E + 30.0)
     assert engine.state.eruption_count == 1
+
+
+def test_co2_alert_marks_once_when_threshold_crossed(engine):
+    engine.gate.arm()
+    # Shrink the tank so one 1.5s cue crosses the warn threshold.
+    engine.co2.capacity_kg = 1.5 * engine.co2.rate_kg_per_s * 1.1
+    engine.machine.request_eruption()
+    E = engine.machine.config.imminent_duration
+    run(engine, 0.0, E + 6.0)
+    assert engine.co2.alerted is True
+    assert engine.co2.remaining_fraction <= engine.co2.warn_remaining_fraction
+
+
+def test_imminent_look_is_distinct_from_active(engine):
+    """During imminent the pars must hit both full-off and full-on (heartbeat),
+    which the breathing phases never do."""
+    engine.machine.request_eruption()
+    E = engine.machine.config.imminent_duration
+    frames = run(engine, 0.0, E - 0.5)
+    dim_ch = engine.rig["par1"].channel("dimmer")
+    values = [f[dim_ch - 1] for _, f in frames]
+    assert min(values) <= 5, "heartbeat should have dark gaps"
+    assert max(values) >= 240, "heartbeat should peak near full"
+    # Breathing phases (dormant look: dimmer 60-100) never leave that band.
+    assert sum(1 for v in values if v < 30) > len(values) * 0.3

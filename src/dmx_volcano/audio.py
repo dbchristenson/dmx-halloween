@@ -21,3 +21,14 @@ def play(path: Path) -> subprocess.Popen | None:
         if shutil.which(player):
             return subprocess.Popen([player, str(path)])
     return None
+
+
+def stop(proc: subprocess.Popen | None) -> None:
+    """Stop a previously started player, tolerating already-dead processes."""
+    if proc is None or proc.poll() is not None:
+        return
+    proc.terminate()
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        proc.kill()

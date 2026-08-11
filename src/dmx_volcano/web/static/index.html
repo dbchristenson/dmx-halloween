@@ -25,7 +25,10 @@
   .stat .l { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #837e73; }
   #phase.dormant  { color: #e05a3a; }
   #phase.active   { color: #f0a030; }
+  #phase.imminent { color: #ff4040; animation: blink 0.7s step-end infinite; }
   #phase.eruption { color: #ffd23f; }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  #co2.low { color: #ff4040; }
   button {
     font: inherit; font-weight: 600; color: #0b0b10; border: 0; border-radius: 8px;
     padding: .55rem 1.1rem; cursor: pointer; background: #e05a3a;
@@ -46,9 +49,11 @@
   <div class="stat"><div class="v" id="tip">0s</div><div class="l">in phase</div></div>
   <div class="stat"><div class="v" id="dwell">—</div><div class="l">dwell</div></div>
   <div class="stat"><div class="v" id="count">0</div><div class="l">eruptions</div></div>
+  <div class="stat"><div class="v" id="co2">—</div><div class="l">CO2 left</div></div>
   <span id="armed-badge">DISARMED</span>
   <button id="triggerBtn">Trigger eruption</button>
   <button id="armBtn">Arm pyro</button>
+  <button id="tankBtn" style="background:#3a3f4a;color:#e8e4dc">Tank reset</button>
 </div>
 <script>
 const canvas = document.getElementById("stage");
@@ -164,6 +169,11 @@ async function tick() {
     document.getElementById("tip").textContent = s.time_in_phase.toFixed(0) + "s";
     document.getElementById("dwell").textContent = s.sampled_dwell ? s.sampled_dwell.toFixed(0) + "s" : "—";
     document.getElementById("count").textContent = s.eruption_count;
+    const co2El = document.getElementById("co2");
+    if (s.co2) {
+      co2El.textContent = (s.co2.remaining_fraction * 100).toFixed(0) + "%";
+      co2El.className = s.co2.alerted ? "low" : "";
+    }
     armed = s.armed;
     const badge = document.getElementById("armed-badge");
     badge.textContent = armed ? "ARMED" : "DISARMED";
@@ -176,6 +186,10 @@ async function tick() {
 }
 
 document.getElementById("triggerBtn").onclick = () => fetch("/api/trigger", { method: "POST" });
+document.getElementById("tankBtn").onclick = () => {
+  if (confirm("Reset CO2 tank tracking? Only after physically connecting a fresh tank."))
+    fetch("/api/tank/reset", { method: "POST" });
+};
 document.getElementById("armBtn").onclick = () => {
   if (!armed && !confirm("Arm pyro? Physical switch must also be on. Confirm operators are in position.")) return;
   fetch(armed ? "/api/disarm" : "/api/arm", { method: "POST" });

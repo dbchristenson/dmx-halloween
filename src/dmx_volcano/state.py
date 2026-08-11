@@ -8,6 +8,7 @@ gate. Keep it that way — the wire must have exactly one owner.
 import threading
 from dataclasses import dataclass, field
 
+from .co2 import CO2Tracker
 from .events import EventLog
 from .fixtures import Rig
 from .phases import PhaseMachine
@@ -20,6 +21,7 @@ class ShowState:
     gate: SafetyGate
     machine: PhaseMachine
     log: EventLog
+    co2: CO2Tracker | None = None
     lock: threading.Lock = field(default_factory=threading.Lock)
     latest_frame: bytes = bytes(512)
     now: float = 0.0

@@ -50,10 +50,14 @@ These are non-negotiable and reviewed against every change:
 
 ## Show design
 
-Three-phase stochastic state machine:
+Four-phase stochastic state machine:
 
 - **Dormant** (dominant): soft amber/red PAR glow, silence.
 - **Active**: fog rolling, occasional CO2 spurts, low rumble loop.
+- **Imminent** (fixed 30s): the attention signal — an accelerating full-range
+  lighting heartbeat, fog at full, warning sound. Every eruption passes
+  through it, including manual triggers: nobody can skip the warning. It
+  cannot fizzle; imminent always erupts.
 - **Eruption**: fixed scripted cue timeline — full sound, rapid LED pulsing,
   continuous fog, CO2 + LPG bursts — then mandatory cooldown back to dormant.
 
@@ -122,6 +126,24 @@ Manual triggers double as a crowd-demand signal: comparing when operators
 wanted eruptions vs. when the sampler fired them drives night-to-night retuning
 of the distribution parameters. Post-season analysis: empirical vs. theoretical
 dwell distributions, eruptions/hour, manual-vs-auto ratio.
+
+## CO2 tracking & alerts
+
+Every granted CO2 burst consumes `duration x rate_kg_per_s` (rate must be
+measured: weigh tank, timed burst, weigh again). Usage persists in
+`var/co2_tank.json` — restarts never "refill" the tank; only the web UI's
+tank-reset does. When remaining capacity crosses the warn threshold, one SMS
+per tank goes to the hardcoded operator numbers in config (Twilio; creds via
+env / systemd EnvironmentFile; unconfigured = log-only, so dev machines never
+text anyone).
+
+## Show content & deployment
+
+All show content — sounds, per-phase lighting looks, eruption cue timings,
+dwell parameters — lives in `config/show.toml`: see `docs/SHOW_AUTHORING.md`.
+The Pi environment (Raspberry Pi OS Lite 64-bit + uv-pinned Python), its
+Docker emulation for the Mac, systemd unit, and udev rule are specified in
+`docs/DEPLOYMENT.md` + `deploy/`.
 
 ## Build order
 

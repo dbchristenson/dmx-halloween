@@ -43,6 +43,7 @@ def create_app(state: ShowState) -> FastAPI:
             frame = list(state.latest_frame)
             now = state.now
         machine = state.machine
+        co2 = state.co2
         return {
             "phase": machine.phase.value,
             "time_in_phase": max(0.0, now - machine.entered_at),
@@ -50,6 +51,13 @@ def create_app(state: ShowState) -> FastAPI:
             "cooldown_remaining": max(0.0, machine.cooldown_until - now),
             "armed": state.gate.pyro_enabled,
             "eruption_count": state.eruption_count,
+            "co2": {
+                "remaining_kg": co2.remaining_kg,
+                "remaining_fraction": co2.remaining_fraction,
+                "alerted": co2.alerted,
+            }
+            if co2
+            else None,
             "frame": frame,
         }
 
@@ -70,5 +78,14 @@ def create_app(state: ShowState) -> FastAPI:
         state.gate.disarm()
         state.log.write("operator", action="disarm")
         return {"armed": False}
+
+    @app.post("/api/tank/reset")
+    def tank_reset() -> dict:
+        """Press after physically connecting a fresh CO2 tank."""
+        if state.co2 is None:
+            return {"reset": False, "reason": "co2 tracking not configured"}
+        state.co2.reset_tank()
+        state.log.write("operator", action="tank_reset")
+        return {"reset": True, "remaining_kg": state.co2.remaining_kg}
 
     return app

@@ -1,7 +1,11 @@
-"""The dormant / active / eruption state machine.
+"""The dormant / active / imminent / eruption state machine.
 
 - Dormant and active sample their dwell at phase entry (stats.py).
-- Active escalates to eruption with p_erupt, else fizzles back to dormant.
+- Active escalates with p_erupt, else fizzles back to dormant.
+- Escalation always passes through IMMINENT: a fixed-length, unmistakable
+  warning look that tells visitors to pay attention *before* any pyro.
+  Manual triggers route through it too — nobody, operator included, can
+  skip the warning. It cannot fizzle: imminent always erupts.
 - Eruption is a fixed-length scripted cue (cues.py), then a mandatory
   cooldown back in dormant.
 - Manual triggers are *requests*: they route through the same gates
@@ -24,6 +28,7 @@ from .stats import DwellConfig, sample_dwell
 class Phase(Enum):
     DORMANT = "dormant"
     ACTIVE = "active"
+    IMMINENT = "imminent"
     ERUPTION = "eruption"
 
 
@@ -31,6 +36,7 @@ class Phase(Enum):
 class PhaseConfig:
     dwell: dict[Phase, DwellConfig]
     p_erupt: float = 0.7  # from ACTIVE: escalate vs. fizzle
+    imminent_duration: float = 30.0  # fixed warning window before eruption
     eruption_duration: float = 20.0  # length of the scripted cue, seconds
     cooldown: float = 60.0  # min time after eruption before leaving dormant
 
@@ -67,15 +73,22 @@ class PhaseMachine:
         elapsed = now - self.entered_at
 
         if self.phase is Phase.ERUPTION:
+            self._manual_requested = False
             if elapsed >= self.config.eruption_duration:
                 self.cooldown_until = now + self.config.cooldown
                 self._transition(Phase.DORMANT, now, "timer")
             return
 
+        if self.phase is Phase.IMMINENT:
+            self._manual_requested = False  # already committed to erupting
+            if elapsed >= self.config.imminent_duration:
+                self._transition(Phase.ERUPTION, now, "timer")
+            return
+
         if self._manual_requested:
             self._manual_requested = False
             if now >= self.cooldown_until:
-                self._transition(Phase.ERUPTION, now, "manual")
+                self._transition(Phase.IMMINENT, now, "manual")
                 return
 
         if self.dwell is not None and elapsed >= self.dwell:
@@ -83,7 +96,7 @@ class PhaseMachine:
                 if now >= self.cooldown_until:
                     self._transition(Phase.ACTIVE, now, "timer")
             elif self.rng.random() < self.config.p_erupt:
-                self._transition(Phase.ERUPTION, now, "timer")
+                self._transition(Phase.IMMINENT, now, "timer")
             else:
                 self._transition(Phase.DORMANT, now, "fizzle")
 

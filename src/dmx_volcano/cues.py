@@ -16,9 +16,22 @@ class Cue:
     params: dict = field(default_factory=dict)
 
 
-# Placeholder timeline — tune against the real rig during rehearsals.
-# Pyro cues must respect safety.MAX_BURST and MIN_GAP (measured burst-end to
-# burst-start) or the gate will deny them — the gate wins, by design.
+def load_timeline(entries: list[dict]) -> list[Cue]:
+    """Build a timeline from config ([[cues.eruption]] tables in show.toml).
+    Every key besides t/action becomes a cue param."""
+    return [
+        Cue(
+            t=float(e["t"]),
+            action=e["action"],
+            params={k: v for k, v in e.items() if k not in ("t", "action")},
+        )
+        for e in entries
+    ]
+
+
+# Fallback timeline if config has no [[cues.eruption]] — tune in config, not
+# here. Pyro cues must respect safety.MAX_BURST and MIN_GAP (measured
+# burst-end to burst-start) or the gate will deny them — the gate wins.
 ERUPTION = [
     Cue(0.0, "sound", {"file": "eruption.wav"}),
     Cue(0.0, "pars", {"color": (255, 30, 0), "strobe_hz": 8}),

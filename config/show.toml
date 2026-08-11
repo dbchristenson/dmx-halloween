@@ -8,6 +8,7 @@ log_dir = "logs"
 
 [phases]
 p_erupt = 0.7          # from active: escalate vs. fizzle back to dormant
+imminent_duration = 30.0  # fixed warning phase before every eruption
 eruption_duration = 20.0
 cooldown = 60.0
 
@@ -22,6 +23,98 @@ t_min = 30.0
 t_max = 180.0
 k = 2.0
 scale = 90.0
+
+# --- CO2 tank tracking --------------------------------------------------
+# rate_kg_per_s is a PLACEHOLDER: measure it (weigh tank, timed 10s burst,
+# weigh again) and update. Usage persists in state_file across restarts;
+# reset via the web UI when you swap tanks.
+
+[co2]
+capacity_kg = 9.0             # 20 lb siphon tank ~= 9 kg liquid CO2
+rate_kg_per_s = 0.35          # MEASURE ME
+warn_remaining_fraction = 0.15
+state_file = "var/co2_tank.json"
+
+# --- Alerts -------------------------------------------------------------
+# Operator phone numbers (E.164). SMS goes out via Twilio; credentials come
+# from env vars TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER
+# (on the Pi: the systemd EnvironmentFile). Unconfigured -> alerts are
+# logged only, so dev machines never text anyone. Do NOT commit real creds.
+
+[alerts]
+phone_numbers = [
+    "+15555550100",   # replace with real operator numbers
+    "+15555550101",
+]
+
+[alerts.twilio]
+account_sid = ""
+auth_token = ""
+from_number = ""
+
+# --- Audio --------------------------------------------------------------
+# Sound file (relative to assets/) played once on entering each phase.
+# Eruption audio belongs in the cue timeline below instead.
+
+[audio]
+active = "rumble.wav"
+imminent = "warning.wav"
+
+# --- Lighting looks -----------------------------------------------------
+# Per-phase render parameters; anything set here overrides the defaults in
+# show.py DEFAULT_LOOKS. See docs/SHOW_AUTHORING.md.
+
+[looks.dormant]
+color = [255, 0, 0]
+dimmer = [60, 100]
+pulse_hz = 0.13
+
+[looks.active]
+color = [255, 40, 0]
+dimmer = [120, 200]
+pulse_hz = 0.13
+fog = 180
+
+[looks.imminent]
+color = [255, 190, 80]
+dimmer = [0, 255]
+beat_hz = [0.6, 2.5]   # heartbeat accelerates from first to second over the phase
+fog = 255
+
+[looks.eruption]
+color = [255, 60, 0]
+dimmer = [40, 255]
+strobe_hz = 8.0
+
+# --- Eruption cue timeline ----------------------------------------------
+# t = seconds from eruption start. Pyro cues must respect the safety gate
+# (flame: <=2.0s bursts, >=3s gap; co2: <=10s bursts, >=5s gap) or they are
+# DENIED and logged with granted=false. The gate wins, by design.
+
+[[cues.eruption]]
+t = 0.0
+action = "sound"
+file = "eruption.wav"
+
+[[cues.eruption]]
+t = 2.0
+action = "fog"
+level = 255
+
+[[cues.eruption]]
+t = 4.0
+action = "co2_burst"
+duration = 1.5
+
+[[cues.eruption]]
+t = 5.0
+action = "flame_burst"
+duration = 0.8
+
+[[cues.eruption]]
+t = 9.0
+action = "flame_burst"
+duration = 0.8
 
 # --- Fixtures -----------------------------------------------------------
 # Channel maps are PROVISIONAL until confirmed against printed manuals
