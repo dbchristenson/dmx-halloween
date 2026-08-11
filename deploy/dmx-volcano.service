@@ -1,0 +1,24 @@
+# systemd unit for the Pi. Install:
+#   sudo cp deploy/dmx-volcano.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now dmx-volcano
+#
+# Safety invariant: every start (boot, crash-restart, manual) comes up
+# DISARMED — arming is always a human act on the control page.
+
+[Unit]
+Description=DMX Volcano show engine
+After=network-online.target sound.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/dmx-halloween
+# Twilio credentials live here, mode 600, never in git:
+EnvironmentFile=-/home/pi/dmx-halloween/.env
+ExecStart=/home/pi/.local/bin/uv run dmx-volcano --real /dev/enttec
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

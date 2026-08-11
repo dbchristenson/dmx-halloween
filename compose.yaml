@@ -1,0 +1,9 @@
+services:
+  volcano:
+    build: .
+    platform: linux/arm64   # Pi 4/5 architecture; runs natively on Apple Silicon
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs    # night logs and CO2 tank state survive the container
+      - ./var:/app/var

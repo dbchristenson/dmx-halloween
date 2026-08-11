@@ -1,0 +1,4 @@
+# Stable /dev/enttec symlink for the Enttec DMX USB Pro (FTDI FT232 bridge),
+# so the systemd unit doesn't depend on USB enumeration order.
+# Install: sudo cp deploy/99-enttec.rules /etc/udev/rules.d/ && sudo udevadm control --reload
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", SYMLINK+="enttec", MODE="0660", GROUP="dialout"
