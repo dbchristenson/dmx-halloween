@@ -2,5 +2,7 @@
 __pycache__/
 *.pyc
 logs/
+var/
+.env
 .pytest_cache/
 dist/
