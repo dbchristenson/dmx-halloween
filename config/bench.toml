@@ -1,0 +1,136 @@
+# BENCH-TEST profile — supervised hardware checks ONLY. Never the show config.
+#
+#   uv run dmx-volcano --real /dev/enttec --config config/bench.toml
+#
+# Differences from show.toml, all in the direction of short + minimal:
+#   - pyro_enabled = true so CO2 test bursts can be armed (invariant 3 is
+#     satisfied because this file is only ever loaded via an explicit
+#     --config flag; the systemd service loads show.toml, which stays false).
+#   - CO2 bursts are 0.5s — one valve click, safe to dry-fire (no tank).
+#   - imminent 5s / eruption 12s / cooldown 10s so a full manual-trigger
+#     cycle takes under 30 seconds.
+#   - dormant/active dwells are ~infinite: NOTHING transitions on its own;
+#     every phase change during a bench session is an explicit operator act.
+#   - No flame cues (flame machine not yet on the chain).
+
+[show]
+frame_rate = 40
+pyro_enabled = true    # BENCH ONLY — see header
+log_dir = "logs"
+
+[phases]
+p_erupt = 1.0            # bench: never fizzle
+imminent_duration = 5.0
+eruption_duration = 12.0
+cooldown = 10.0
+
+[phases.dwell.dormant]
+t_min = 86400.0          # ~infinite: no self-transitions on the bench
+t_max = 86401.0
+k = 2.0
+scale = 86400.0
+
+[phases.dwell.active]
+t_min = 86400.0
+t_max = 86401.0
+k = 2.0
+scale = 86400.0
+
+[co2]
+capacity_kg = 9.0
+rate_kg_per_s = 0.35
+warn_remaining_fraction = 0.15
+state_file = "var/co2_tank.json"
+
+[alerts]
+phone_numbers = []       # bench: never text anyone
+
+[looks.dormant]
+color = [255, 0, 0]
+dimmer = [60, 100]
+pulse_hz = 0.13
+
+[looks.active]
+color = [255, 40, 0]
+dimmer = [120, 200]
+pulse_hz = 0.13
+fog = 0                  # bench: keep the fogger quiet unless tested explicitly
+
+[looks.imminent]
+color = [255, 190, 80]
+dimmer = [0, 255]
+beat_hz = [0.6, 2.5]
+fog = 0
+
+[looks.eruption]
+color = [255, 60, 0]
+dimmer = [40, 255]
+strobe_hz = 8.0
+
+# Eruption timeline, bench edition: one short CO2 pop, PAR strobe from the
+# phase render. No fog, no flame, no sound assets required.
+[[cues.eruption]]
+t = 2.0
+action = "co2_burst"
+duration = 0.5
+
+# Fixture addressing — identical to show.toml. DMX chain ORDER is irrelevant
+# (docs/DMX_ADDRESSING.md); only these start addresses must match what each
+# fixture's own display/DIP switches are set to.
+
+[fixtures.flame]
+address = 1
+channels = { safety = 0, fire = 1 }
+pyro = true
+position = [0.0, 0.5]
+
+[fixtures.co2]
+address = 10
+channels = { jet = 0 }
+pyro = true
+position = [0.0, -0.5]
+
+[fixtures.fogger]
+address = 20
+channels = { fog = 0, red = 1, green = 2, blue = 3 }
+position = [0.0, 0.0]
+
+[fixtures.par1]
+address = 30
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [1.5, 1.5]
+
+[fixtures.par2]
+address = 37
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [-1.5, 1.5]
+
+[fixtures.par3]
+address = 44
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [1.5, -1.5]
+
+[fixtures.par4]
+address = 51
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [-1.5, -1.5]
+
+[fixtures.par5]
+address = 58
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [3.0, 0.0]
+
+[fixtures.par6]
+address = 65
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [-3.0, 0.0]
+
+[fixtures.par7]
+address = 72
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [0.0, 3.0]
+
+[fixtures.par8]
+address = 79
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [0.0, -3.0]
