@@ -6,3 +6,4 @@ var/
 .env
 .pytest_cache/
 dist/
+.claude/settings.local.json
