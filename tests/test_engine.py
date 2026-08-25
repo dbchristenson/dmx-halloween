@@ -22,6 +22,7 @@ DT = 1 / 40
 def engine(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)  # EventLog and CO2 state write under cwd
     eng, state, _ = build_engine(CONFIG, FakeDriver())
+    eng.gate.enabled_by_config = True  # show-night config: pyro_enabled=true
     eng.machine.start(0.0)
     return eng
 

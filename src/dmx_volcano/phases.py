@@ -10,6 +10,9 @@
   cooldown back in dormant.
 - Manual triggers are *requests*: they route through the same gates
   (cooldown, current phase) as automatic transitions.
+- Operator overrides: `hold` pins the show in dormant (an in-progress
+  imminent/eruption still completes first — the warning contract survives);
+  pause freezes phase timing, but only in dormant/active.
 
 Every transition is reported to the event log with the sampled dwell vs.
 actual elapsed and the trigger cause — the raw material for night-to-night
@@ -60,7 +63,13 @@ class PhaseMachine:
     entered_at: float = 0.0
     dwell: float | None = None
     cooldown_until: float = float("-inf")
+    # Operator overrides. hold/_pause_target are written by the web thread
+    # (atomic bool stores); every transition and timer mutation still happens
+    # only inside tick(), on the frame thread.
+    hold: bool = False  # while True the show never leaves dormant on its own
     _manual_requested: bool = field(default=False, repr=False)
+    _pause_target: bool = field(default=False, repr=False)
+    _paused_at: float | None = field(default=None, repr=False)
 
     def start(self, now: float) -> None:
         self._enter(Phase.DORMANT, now, cause="start")
@@ -69,7 +78,45 @@ class PhaseMachine:
         """Manual trigger from the web page; honored on the next tick if gates allow."""
         self._manual_requested = True
 
+    def request_pause(self, on: bool) -> None:
+        """Freeze/unfreeze phase timing. Takes effect on the next tick, and
+        only in dormant/active — imminent and eruption always run to
+        completion (the warning can't be stretched around live pyro)."""
+        self._pause_target = on
+
+    @property
+    def paused(self) -> bool:
+        return self._paused_at is not None
+
+    @property
+    def pause_pending(self) -> bool:
+        """Pause requested but deferred until the show is back in dormant/active."""
+        return self._pause_target and not self.paused
+
+    def elapsed(self, now: float) -> float:
+        """Time in phase, frozen while paused."""
+        return (self._paused_at if self.paused else now) - self.entered_at
+
     def tick(self, now: float) -> None:
+        if self._paused_at is not None:
+            if self._pause_target:
+                return
+            # Resume: shift every timer by the paused span so no dwell elapses.
+            shift = now - self._paused_at
+            self.entered_at += shift
+            if self.cooldown_until > float("-inf"):
+                self.cooldown_until += shift
+            self._paused_at = None
+        elif self._pause_target and self.phase in (Phase.DORMANT, Phase.ACTIVE):
+            self._paused_at = now
+            return
+
+        if self.hold:
+            self._manual_requested = False
+            if self.phase is Phase.ACTIVE:
+                self._transition(Phase.DORMANT, now, "hold")
+                return
+
         elapsed = now - self.entered_at
 
         if self.phase is Phase.ERUPTION:
@@ -93,7 +140,7 @@ class PhaseMachine:
 
         if self.dwell is not None and elapsed >= self.dwell:
             if self.phase is Phase.DORMANT:
-                if now >= self.cooldown_until:
+                if not self.hold and now >= self.cooldown_until:
                     self._transition(Phase.ACTIVE, now, "timer")
             elif self.rng.random() < self.config.p_erupt:
                 self._transition(Phase.IMMINENT, now, "timer")

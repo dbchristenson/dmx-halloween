@@ -13,6 +13,7 @@ lives in config/show.toml — see docs/SHOW_AUTHORING.md.
 """
 
 import argparse
+import signal
 import subprocess
 import threading
 import time
@@ -28,6 +29,7 @@ from .driver.fake import FakeDriver
 from .driver.universe import Universe
 from .events import EventLog
 from .fixtures import Rig, load_rig
+from .manual import BurstResult, TestConsole
 from .notify import SmsConfig, send_sms_async, sms_config_from
 from .phases import Phase, PhaseConfig, PhaseMachine, Transition
 from .safety import SafetyGate
@@ -67,6 +69,39 @@ def build_looks(raw: dict) -> dict:
     for phase, overrides in raw.get("looks", {}).items():
         looks.setdefault(phase, {}).update(overrides)
     return looks
+
+
+class SimClock:
+    """Virtual show clock, sim mode only: fast-forward validates dwell
+    distributions in minutes instead of hours. The frame loop still paces at
+    real 40Hz; each frame just advances show time `speed` times faster.
+    Real (Enttec) mode never constructs one of these."""
+
+    MIN_SPEED, MAX_SPEED = 0.1, 100.0
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._speed = 1.0
+        self._v0 = 0.0
+        self._r0 = time.monotonic()
+
+    @property
+    def speed(self) -> float:
+        with self._lock:
+            return self._speed
+
+    def set_speed(self, speed: float) -> float:
+        speed = min(self.MAX_SPEED, max(self.MIN_SPEED, speed))
+        with self._lock:
+            real = time.monotonic()
+            self._v0 += (real - self._r0) * self._speed
+            self._r0 = real
+            self._speed = speed
+        return speed
+
+    def now(self) -> float:
+        with self._lock:
+            return self._v0 + (time.monotonic() - self._r0) * self._speed
 
 
 class EffectOverlay:
@@ -145,9 +180,11 @@ class ShowEngine:
         phase_sounds: dict[str, str] | None = None,
         co2: CO2Tracker | None = None,
         sms: SmsConfig | None = None,
+        console: TestConsole | None = None,
     ) -> None:
         self.rig = rig
         self.gate = gate
+        self.console = console
         self.machine = machine
         self.driver = driver
         self.log = log
@@ -188,12 +225,24 @@ class ShowEngine:
             for cue in self.runner.due_cues(now):
                 self._execute(cue, now)
 
-        progress = 0.0
-        if phase is Phase.IMMINENT:
-            progress = min(
-                1.0, (now - self.machine.entered_at) / self.machine.config.imminent_duration
-            )
-        render(phase, self.rig, self.universe, now, progress, self.looks)
+        if self.console is not None and self.console.enabled:
+            # Test mode: the operator owns the universe. Blackout base so a
+            # fixture lights up if and only if its toggle is on; pyro test
+            # fires run through the exact same gate path as eruption cues.
+            self.universe.blackout()
+            for ch, value in self.console.overrides().items():
+                self.universe[ch] = value
+            for kind, duration in self.console.pop_bursts():
+                granted = self._pyro_burst(kind, duration, now)
+                self.console.last_burst = BurstResult(kind, duration, granted, now)
+                self.log.write("test_burst", burst=kind, duration=duration, granted=granted)
+        else:
+            progress = 0.0
+            if phase is Phase.IMMINENT:
+                progress = min(
+                    1.0, (now - self.machine.entered_at) / self.machine.config.imminent_duration
+                )
+            render(phase, self.rig, self.universe, now, progress, self.looks)
         self.overlay.apply(self.universe, now)
         frame = bytearray(self.universe.as_bytes())
         self.gate.clamp(frame, now)
@@ -217,26 +266,33 @@ class ShowEngine:
                 self.rig["fogger"].channel("fog"), cue.params["level"], eruption_end
             )
         elif cue.action == "co2_burst":
-            ch = self.rig["co2"].channel("jet")
-            granted = self.gate.request_burst(
-                "co2", {ch}, cue.params["duration"], now=now
-            )
-            if granted:
-                self.overlay.set(ch, 255, now + cue.params["duration"])
-                self._track_co2(cue.params["duration"])
+            granted = self._pyro_burst("co2", cue.params["duration"], now)
         elif cue.action == "flame_burst":
-            safety_ch = self.rig["flame"].channel("safety")
-            fire_ch = self.rig["flame"].channel("fire")
-            granted = self.gate.request_burst(
-                "flame", {safety_ch, fire_ch}, cue.params["duration"], now=now
-            )
-            if granted:
-                until = now + cue.params["duration"]
-                self.overlay.set(safety_ch, FLAME_SAFETY_ARM_VALUE, until)
-                self.overlay.set(fire_ch, 255, until)
+            granted = self._pyro_burst("flame", cue.params["duration"], now)
         # "pars"/"fade" are handled by the phase render for now.
 
         self.log.write("cue", t=cue.t, action=cue.action, granted=granted, **cue.params)
+
+    def _pyro_burst(self, kind: str, duration: float, now: float) -> bool:
+        """The one path that puts pyro on the wire — used by eruption cues
+        and manual test fires alike, always via a SafetyGate permit."""
+        if kind == "co2":
+            ch = self.rig["co2"].channel("jet")
+            granted = self.gate.request_burst("co2", {ch}, duration, now=now)
+            if granted:
+                self.overlay.set(ch, 255, now + duration)
+                self._track_co2(duration)
+        else:
+            safety_ch = self.rig["flame"].channel("safety")
+            fire_ch = self.rig["flame"].channel("fire")
+            granted = self.gate.request_burst(
+                "flame", {safety_ch, fire_ch}, duration, now=now
+            )
+            if granted:
+                until = now + duration
+                self.overlay.set(safety_ch, FLAME_SAFETY_ARM_VALUE, until)
+                self.overlay.set(fire_ch, 255, until)
+        return granted
 
     def _track_co2(self, duration: float) -> None:
         if self.co2 is None:
@@ -259,7 +315,13 @@ def build_engine(
     with open(config_path, "rb") as f:
         raw = tomllib.load(f)
     rig = load_rig(config_path)
-    gate = SafetyGate(pyro_channels=rig.pyro_channels())  # starts disarmed, always
+    # Starts disarmed, always; web arming additionally requires the config
+    # pyro_enabled flag (rehearsal interlock).
+    gate = SafetyGate(
+        pyro_channels=rig.pyro_channels(),
+        enabled_by_config=raw["show"].get("pyro_enabled", False),
+    )
+    console = TestConsole(pyro_channels=rig.pyro_channels())
     log = EventLog(Path(raw["show"]["log_dir"]))
     machine = PhaseMachine(config=build_phase_config(raw), rng=np.random.default_rng())
 
@@ -279,7 +341,7 @@ def build_engine(
     timeline = load_timeline(timeline_cfg) if timeline_cfg else None
 
     state = (
-        ShowState(rig=rig, gate=gate, machine=machine, log=log, co2=co2)
+        ShowState(rig=rig, gate=gate, machine=machine, log=log, co2=co2, console=console)
         if with_state
         else None
     )
@@ -290,6 +352,7 @@ def build_engine(
         phase_sounds=raw.get("audio", {}),
         co2=co2,
         sms=sms_config_from(raw),
+        console=console,
     )
     return engine, state, raw
 
@@ -310,6 +373,9 @@ def main() -> None:
         driver = FakeDriver()
 
     engine, state, raw = build_engine(args.config, driver)
+    clock = None if args.real else SimClock()
+    if state is not None:
+        state.clock = clock
     engine.log.write("startup", mode="real" if args.real else "sim", armed=False)
 
     if not args.no_web:
@@ -324,13 +390,22 @@ def main() -> None:
         )
         threading.Thread(target=server.run, daemon=True).start()
 
+    # Route SIGTERM (systemd stop) through the same blackout path as Ctrl-C,
+    # and re-enable SIGINT even if inherited as ignored (background shells set
+    # SIG_IGN, which Python would otherwise silently keep).
+    def _shutdown_signal(signum, frame):
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, _shutdown_signal)
+    signal.signal(signal.SIGINT, _shutdown_signal)
+
     frame_interval = 1.0 / raw["show"]["frame_rate"]
-    engine.machine.start(time.monotonic())
+    engine.machine.start(clock.now() if clock else time.monotonic())
     try:
         while True:
-            now = time.monotonic()
-            engine.step(now)
-            time.sleep(max(0.0, frame_interval - (time.monotonic() - now)))
+            real_now = time.monotonic()
+            engine.step(clock.now() if clock else real_now)
+            time.sleep(max(0.0, frame_interval - (time.monotonic() - real_now)))
     except KeyboardInterrupt:
         engine.universe.blackout()
         driver.send_frame(engine.universe.as_bytes())

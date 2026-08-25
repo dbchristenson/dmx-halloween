@@ -108,7 +108,10 @@ tests/                   # safety invariants, state machine, wire format
   frame stream as the wire. Supports fast-forward to validate dwell
   distributions over hundreds of simulated cycles.
 - **Web control page:** trigger eruption, hold dormant, pause; shows current
-  phase, time-in-phase, eruption count, armed state.
+  phase, time-in-phase, eruption count, armed state. Includes a fixture-test
+  console (dormant + hold only): light/fog toggles, and time-boxed CO2/flame
+  test bursts through the same SafetyGate as cues — never free-running
+  toggles. Assumptions made while building it: `docs/REVISIT.md`.
 - **Deployment:** systemd service, auto-start on boot into safe dormant,
   auto-restart on crash.
 

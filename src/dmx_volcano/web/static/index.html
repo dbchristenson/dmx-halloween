@@ -3,129 +3,307 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DMX Volcano</title>
+<title>DMX Volcano — Control</title>
 <style>
-  :root { color-scheme: dark; }
+  /* Operator console: dark for night vision, engraved-panel labels, tabular
+     numbers. No webfonts — the page must render with the uplink down. */
+  :root {
+    color-scheme: dark;
+    --bg: #0a0908;
+    --panel: #171310;
+    --panel-2: #1f1914;
+    --line: #2c251c;
+    --ash: #e9e1d3;
+    --dust: #8f8676;
+    --magma: #ff4f1f;
+    --amber: #ffb129;
+    --ice: #9ed9e8;
+    --moss: #7baf6e;
+    --danger: #ff2e2e;
+    --label: 600 .72rem/1 "Avenir Next Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  }
   * { box-sizing: border-box; margin: 0; }
   body {
-    background: #0b0b10; color: #e8e4dc;
-    font: 15px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;
-    display: flex; flex-direction: column; align-items: center;
-    min-height: 100vh; padding: 1.25rem; gap: 1rem;
+    background: var(--bg); color: var(--ash);
+    font: 15px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif;
+    max-width: 720px; margin: 0 auto; padding: .9rem .9rem 3rem;
   }
-  h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: #b8b2a6; }
-  #stage { background: #121218; border: 1px solid #26262e; border-radius: 12px; max-width: 100%; }
-  #panel {
-    display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; align-items: center;
-    justify-content: center; background: #15151c; border: 1px solid #26262e;
-    border-radius: 12px; padding: .75rem 1.25rem;
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; }
+  .lbl { font: var(--label); letter-spacing: .14em; text-transform: uppercase; color: var(--dust); }
+
+  /* ---- masthead + annunciator ---- */
+  header { margin-bottom: .9rem; }
+  .mast { display: flex; align-items: baseline; justify-content: space-between; padding: 0 .15rem .5rem; }
+  .mast h1 { font: var(--label); font-size: .85rem; letter-spacing: .22em; text-transform: uppercase; color: var(--ash); }
+  .mast .mode { font: var(--label); letter-spacing: .14em; text-transform: uppercase; color: var(--dust); }
+  .annunciator { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+  .ann {
+    padding: .55rem .25rem .5rem; text-align: center; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 4px;
+    font: var(--label); letter-spacing: .1em; text-transform: uppercase;
+    color: #574c40; position: relative; white-space: nowrap; overflow: hidden;
   }
-  .stat { text-align: center; min-width: 5.5rem; }
-  .stat .v { font-size: 1.2rem; font-variant-numeric: tabular-nums; font-weight: 600; }
-  .stat .l { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #837e73; }
-  #phase.dormant  { color: #e05a3a; }
-  #phase.active   { color: #f0a030; }
-  #phase.imminent { color: #ff4040; animation: blink 0.7s step-end infinite; }
-  #phase.eruption { color: #ffd23f; }
-  @keyframes blink { 50% { opacity: 0.25; } }
-  #co2.low { color: #ff4040; }
+  .ann::before {
+    content: ""; position: absolute; top: 5px; left: 50%; transform: translateX(-50%);
+    width: 5px; height: 5px; border-radius: 50%; background: #33291f;
+  }
+  .ann.lit { color: var(--ash); border-color: var(--on, var(--dust)); box-shadow: inset 0 0 18px -6px var(--on, transparent); }
+  .ann.lit::before { background: var(--on); box-shadow: 0 0 6px var(--on); }
+  .ann-dormant  { --on: #b0693c; }
+  .ann-active   { --on: #ff8c1a; }
+  .ann-imminent { --on: var(--danger); }
+  .ann-eruption { --on: #ffd23f; }
+  .ann-imminent.lit { animation: blink .7s step-end infinite; }
+  @keyframes blink { 50% { color: #574c40; box-shadow: none; } }
+
+  /* Hazard band: exists only while pyro is armed. */
+  #armband {
+    margin-top: 6px; border-radius: 4px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; gap: .6rem;
+    padding: .42rem 0; border: 1px solid var(--line);
+    font: var(--label); letter-spacing: .18em; text-transform: uppercase; color: var(--dust); text-align: center;
+    background: var(--panel);
+  }
+  #armband.armed {
+    border-color: var(--amber);
+    background: repeating-linear-gradient(-45deg, var(--amber) 0 14px, #1a1102 14px 28px);
+    color: var(--amber); animation: crawl 1.2s linear infinite;
+  }
+  @keyframes crawl { to { background-position: 40px 0; } }
+  #armband.armed span { background: #140d02; padding: .1rem .6rem; border-radius: 2px; }
+
+  /* ---- stage ---- */
+  #stage { display: block; width: 100%; background: #100d0b; border: 1px solid var(--line); border-radius: 8px; margin: .9rem 0; }
+
+  /* ---- stats ---- */
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: .5rem .25rem .45rem; text-align: center; min-width: 0; overflow: hidden; }
+  .stat .v { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; font-size: 1.15rem; font-weight: 600; }
+  .stat .l { font: var(--label); letter-spacing: .12em; text-transform: uppercase; color: var(--dust); margin-top: .2rem; }
+  #co2stat.low .v { color: var(--danger); }
+
+  /* ---- panels ---- */
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .9rem; margin-top: .9rem; }
+  section > h2 { font: var(--label); font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--dust);
+    border-bottom: 1px solid var(--line); padding-bottom: .55rem; margin-bottom: .8rem; }
+
   button {
-    font: inherit; font-weight: 600; color: #0b0b10; border: 0; border-radius: 8px;
-    padding: .55rem 1.1rem; cursor: pointer; background: #e05a3a;
+    font: inherit; font-weight: 650; color: var(--ash);
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+    padding: .7rem 1rem; cursor: pointer; min-height: 48px;   /* gloved-thumb targets */
   }
-  button:hover { filter: brightness(1.1); }
-  #armBtn { background: #3a3f4a; color: #e8e4dc; }
-  #armBtn.armed { background: #ffd23f; color: #0b0b10; }
-  #armed-badge { font-size: .75rem; letter-spacing: .1em; padding: .2rem .6rem; border-radius: 99px;
-    background: #23262e; color: #837e73; }
-  #armed-badge.armed { background: #5a1f14; color: #ffd23f; }
+  button:hover { border-color: var(--dust); }
+  button:focus-visible { outline: 2px solid var(--ice); outline-offset: 2px; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.pressed { border-color: var(--amber); color: var(--amber); background: #221805; }
+
+  .row { display: flex; gap: .6rem; flex-wrap: wrap; }
+  .row > button { flex: 1 1 9rem; min-width: 0; }
+  #triggerBtn {
+    width: 100%; margin-bottom: .6rem; padding: .95rem;
+    background: linear-gradient(#3a1206, #2a0d04); border-color: #6b2410; color: #ffc9b3;
+    font-size: 1.02rem;
+  }
+  #triggerBtn:hover { border-color: var(--magma); }
+  #triggerBtn small { display: block; font-weight: 400; font-size: .72rem; color: #c98668; margin-top: .15rem; }
+  #armBtn.armed { border-color: var(--amber); color: var(--amber); background: #221805; }
+
+  /* ---- test panel ---- */
+  #testBody { display: none; }
+  #testPanel.on #testBody { display: block; }
+  .fixgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; margin-bottom: .9rem; }
+  .fixgrid button { min-height: 44px; padding: .5rem .25rem; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .85rem; }
+  .fixgrid button.pressed { border-color: #ff8c1a; color: #ffb87a; background: #241305; }
+  .sub { font: var(--label); letter-spacing: .14em; text-transform: uppercase; color: var(--dust); margin: .9rem 0 .5rem; }
+  .fogrow { display: flex; align-items: center; gap: .8rem; }
+  .fogrow input[type=range] { flex: 1; accent-color: var(--dust); min-height: 44px; }
+  .fogrow .mono { min-width: 3ch; text-align: right; }
+
+  .pyrorow { display: flex; gap: .6rem; align-items: stretch; margin-top: .5rem; }
+  .pyrorow select {
+    font: inherit; background: var(--panel-2); color: var(--ash);
+    border: 1px solid var(--line); border-radius: 6px; padding: 0 .5rem; min-height: 48px;
+  }
+  .pyrorow button { flex: 1; }
+  #fireFlame { border-color: #6b2410; color: #ffc9b3; background: #240c04; }
+  #fireCo2 { border-color: #1e4652; color: var(--ice); background: #0a1a1f; }
+  .ready { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .78rem; color: var(--dust); align-self: center; min-width: 5.5ch; text-align: center; }
+
+  /* ---- console line + sim ---- */
+  #msg {
+    margin-top: .9rem; padding: .55rem .8rem; border-radius: 6px; min-height: 2.2rem;
+    background: var(--panel); border: 1px solid var(--line);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .8rem; color: var(--dust);
+  }
+  #msg.err { color: var(--amber); border-color: #4d3a10; }
+  #simBar { display: none; align-items: center; gap: .5rem; margin-top: .9rem; flex-wrap: wrap; }
+  #simBar.show { display: flex; }
+  #simBar button { min-height: 40px; padding: .35rem .7rem; flex: 1; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  @media (max-width: 480px) {
+    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .fixgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ann-imminent.lit, #armband.armed { animation: none; }
+  }
 </style>
 </head>
 <body>
-<h1>DMX Volcano</h1>
+<header>
+  <div class="mast">
+    <h1>DMX Volcano</h1>
+    <span class="mode" id="modeTag">—</span>
+  </div>
+  <div class="annunciator" role="status" aria-label="show phase">
+    <div class="ann ann-dormant"  id="ann-dormant">Dormant</div>
+    <div class="ann ann-active"   id="ann-active">Active</div>
+    <div class="ann ann-imminent" id="ann-imminent">Imminent</div>
+    <div class="ann ann-eruption" id="ann-eruption">Eruption</div>
+  </div>
+  <div id="armband" role="status"><span>Pyro safe — disarmed</span></div>
+</header>
+
 <canvas id="stage" width="640" height="640"></canvas>
-<div id="panel">
-  <div class="stat"><div class="v" id="phase">—</div><div class="l">phase</div></div>
-  <div class="stat"><div class="v" id="tip">0s</div><div class="l">in phase</div></div>
-  <div class="stat"><div class="v" id="dwell">—</div><div class="l">dwell</div></div>
-  <div class="stat"><div class="v" id="count">0</div><div class="l">eruptions</div></div>
-  <div class="stat"><div class="v" id="co2">—</div><div class="l">CO2 left</div></div>
-  <span id="armed-badge">DISARMED</span>
-  <button id="triggerBtn">Trigger eruption</button>
-  <button id="armBtn">Arm pyro</button>
-  <button id="tankBtn" style="background:#3a3f4a;color:#e8e4dc">Tank reset</button>
+
+<div class="stats">
+  <div class="stat"><div class="v mono" id="tip">0s</div><div class="l">In phase</div></div>
+  <div class="stat"><div class="v mono" id="dwell">—</div><div class="l">Dwell</div></div>
+  <div class="stat"><div class="v mono" id="count">0</div><div class="l">Eruptions</div></div>
+  <div class="stat" id="co2stat"><div class="v mono" id="co2">—</div><div class="l">CO2 left</div></div>
 </div>
+
+<section>
+  <h2>Show</h2>
+  <button id="triggerBtn">Request eruption<small id="triggerSub">runs the 30s warning first — always</small></button>
+  <div class="row">
+    <button id="holdBtn">Hold dormant</button>
+    <button id="pauseBtn">Pause timing</button>
+    <button id="armBtn">Arm pyro</button>
+  </div>
+</section>
+
+<section id="testPanel">
+  <h2>Fixture test</h2>
+  <button id="testBtn">Enter test mode</button>
+  <div id="testBody">
+    <div class="sub">Lights — tap to toggle</div>
+    <div class="fixgrid" id="parGrid"></div>
+    <div class="sub">Fogger</div>
+    <div class="fogrow">
+      <input type="range" id="fogRange" min="0" max="255" step="5" value="0" aria-label="fog level">
+      <span class="mono" id="fogVal">0</span>
+    </div>
+    <div class="sub">Pyro — bounded bursts only, needs arming</div>
+    <div class="pyrorow">
+      <select id="flameDur" aria-label="flame burst duration"></select>
+      <button id="fireFlame">Fire flame</button>
+      <span class="ready" id="flameReady"></span>
+    </div>
+    <div class="pyrorow">
+      <select id="co2Dur" aria-label="CO2 burst duration"></select>
+      <button id="fireCo2">Fire CO2</button>
+      <span class="ready" id="co2Ready"></span>
+    </div>
+  </div>
+</section>
+
+<div id="simBar">
+  <span class="lbl">Sim speed</span>
+  <button data-speed="1">1×</button>
+  <button data-speed="10">10×</button>
+  <button data-speed="30">30×</button>
+  <button data-speed="60">60×</button>
+</div>
+
+<div class="row" style="margin-top:.9rem">
+  <button id="tankBtn">CO2 tank swapped — reset meter</button>
+</div>
+
+<div id="msg" role="log">Connecting…</div>
+
 <script>
-const canvas = document.getElementById("stage");
-const ctx = canvas.getContext("2d");
+const $ = (id) => document.getElementById(id);
+const canvas = $("stage"), ctx = canvas.getContext("2d");
 const PX_PER_M = 70, CX = 320, CY = 320;
-let layout = null, armed = false;
+let layout = null, state = null, litPars = {};
 
-const px = (p) => [CX + p[0] * PX_PER_M, CY - p[1] * PX_PER_M];
 const chv = (frame, ch) => frame[ch - 1] || 0;
+const px = (p) => [CX + p[0] * PX_PER_M, CY - p[1] * PX_PER_M];
 
+async function post(url, body) {
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: body ? { "content-type": "application/json" } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await r.json();
+    if (data.ok === false) say(data.reason, true);
+    else say(okText(url, body));
+    return data;
+  } catch { say("Engine unreachable — retrying", true); return { ok: false }; }
+}
+
+function okText(url, body) {
+  const t = new Date().toLocaleTimeString();
+  const name = url.replace("/api/", "").replace("/", " ");
+  return `${t} — ${name}${body ? " " + JSON.stringify(body) : ""} ✓`;
+}
+function say(text, err = false) { const m = $("msg"); m.textContent = text; m.className = err ? "err" : ""; }
+
+/* ---- visualizer (same wire-truth drawing, restyled) ---- */
 function drawVolcano() {
-  ctx.save();
   const g = ctx.createRadialGradient(CX, CY, 20, CX, CY, 120);
-  g.addColorStop(0, "#2a1c14"); g.addColorStop(1, "#17130f");
+  g.addColorStop(0, "#2a1c14"); g.addColorStop(1, "#151009");
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(CX, CY, 120, 0, 7); ctx.fill();
   ctx.strokeStyle = "#3d2b1c"; ctx.lineWidth = 3; ctx.stroke();
   ctx.beginPath(); ctx.arc(CX, CY, 42, 0, 7);
   ctx.fillStyle = "#0e0a08"; ctx.fill(); ctx.strokeStyle = "#4a2a20"; ctx.stroke();
-  ctx.restore();
 }
-
 function drawPar(f, frame) {
   const [x, y] = px(f.position);
   const dim = chv(frame, f.channels.dimmer) / 255;
-  const r = chv(frame, f.channels.red), gc = chv(frame, f.channels.green), b = chv(frame, f.channels.blue);
+  const r = chv(frame, f.channels.red), g = chv(frame, f.channels.green), b = chv(frame, f.channels.blue);
   if (dim > 0.01) {
     const glow = ctx.createRadialGradient(x, y, 2, x, y, 44);
-    glow.addColorStop(0, `rgba(${r},${gc},${b},${0.85 * dim})`);
-    glow.addColorStop(1, `rgba(${r},${gc},${b},0)`);
+    glow.addColorStop(0, `rgba(${r},${g},${b},${0.85 * dim})`);
+    glow.addColorStop(1, `rgba(${r},${g},${b},0)`);
     ctx.fillStyle = glow;
     ctx.beginPath(); ctx.arc(x, y, 44, 0, 7); ctx.fill();
   }
   ctx.fillStyle = "#2b2b33"; ctx.strokeStyle = "#55545e";
   ctx.beginPath(); ctx.arc(x, y, 7, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.font = "600 9px ui-monospace, Menlo, monospace"; ctx.textAlign = "center";
+  ctx.fillStyle = "#6b6355"; ctx.fillText(f.name.replace("par", "P"), x, y + 18);
 }
-
 function drawFogger(f, frame) {
   const [x, y] = px(f.position);
   const fog = chv(frame, f.channels.fog) / 255;
-  if (fog > 0.02) {
-    for (let i = 0; i < 3; i++) {
-      const t = Date.now() / 900 + i * 2.1;
-      const dx = Math.sin(t) * 14 * (i + 1), dy = -12 * i - 8 * Math.abs(Math.cos(t));
-      const cloud = ctx.createRadialGradient(x + dx, y + dy, 2, x + dx, y + dy, 26 + 10 * i);
-      cloud.addColorStop(0, `rgba(190,190,200,${0.30 * fog})`);
-      cloud.addColorStop(1, "rgba(190,190,200,0)");
-      ctx.fillStyle = cloud;
-      ctx.beginPath(); ctx.arc(x + dx, y + dy, 26 + 10 * i, 0, 7); ctx.fill();
-    }
+  if (fog > 0.02) for (let i = 0; i < 3; i++) {
+    const t = Date.now() / 900 + i * 2.1;
+    const dx = Math.sin(t) * 14 * (i + 1), dy = -12 * i - 8 * Math.abs(Math.cos(t));
+    const c = ctx.createRadialGradient(x + dx, y + dy, 2, x + dx, y + dy, 26 + 10 * i);
+    c.addColorStop(0, `rgba(190,190,200,${0.3 * fog})`); c.addColorStop(1, "rgba(190,190,200,0)");
+    ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + dx, y + dy, 26 + 10 * i, 0, 7); ctx.fill();
   }
-  ctx.font = "16px sans-serif"; ctx.textAlign = "center";
-  ctx.globalAlpha = 0.9; ctx.fillText("🌫", x, y + 6); ctx.globalAlpha = 1;
+  ctx.font = "16px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🌫", x, y + 6);
 }
-
 function drawCo2(f, frame) {
   const [x, y] = px(f.position);
   const jet = chv(frame, f.channels.jet) / 255;
   if (jet > 0.02) {
-    ctx.save();
-    ctx.globalAlpha = 0.85 * jet;
+    ctx.save(); ctx.globalAlpha = 0.85 * jet;
     const beam = ctx.createLinearGradient(x, y, x, y - 130);
     beam.addColorStop(0, "rgba(235,245,255,.95)"); beam.addColorStop(1, "rgba(235,245,255,0)");
     ctx.fillStyle = beam;
     ctx.beginPath();
     ctx.moveTo(x - 6, y); ctx.lineTo(x - 22, y - 130); ctx.lineTo(x + 22, y - 130); ctx.lineTo(x + 6, y);
-    ctx.closePath(); ctx.fill();
-    ctx.restore();
+    ctx.closePath(); ctx.fill(); ctx.restore();
   }
   ctx.font = "16px sans-serif"; ctx.textAlign = "center"; ctx.fillText("❄️", x, y + 6);
 }
-
 function drawFlame(f, frame) {
   const [x, y] = px(f.position);
   const fire = chv(frame, f.channels.fire) / 255;
@@ -134,21 +312,19 @@ function drawFlame(f, frame) {
   if (fire > 0.02 && safeOpen) {
     const h = 100 + 40 * Math.random();
     ctx.save(); ctx.globalAlpha = 0.9 * fire;
-    const flame = ctx.createLinearGradient(x, y, x, y - h);
-    flame.addColorStop(0, "#ffdf60"); flame.addColorStop(.5, "#ff7b2d"); flame.addColorStop(1, "rgba(220,40,10,0)");
-    ctx.fillStyle = flame;
+    const fl = ctx.createLinearGradient(x, y, x, y - h);
+    fl.addColorStop(0, "#ffdf60"); fl.addColorStop(.5, "#ff7b2d"); fl.addColorStop(1, "rgba(220,40,10,0)");
+    ctx.fillStyle = fl;
     ctx.beginPath();
     ctx.moveTo(x - 12, y);
     ctx.quadraticCurveTo(x - 18, y - h * .5, x, y - h);
     ctx.quadraticCurveTo(x + 18, y - h * .5, x + 12, y);
-    ctx.closePath(); ctx.fill();
-    ctx.restore();
+    ctx.closePath(); ctx.fill(); ctx.restore();
   }
   ctx.font = "16px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🔥", x, y + 6);
   ctx.fillStyle = safeOpen ? "#ffd23f" : "#3a3f4a";
   ctx.beginPath(); ctx.arc(x + 14, y - 10, 3.5, 0, 7); ctx.fill();
 }
-
 function draw(frame) {
   ctx.clearRect(0, 0, 640, 640);
   drawVolcano();
@@ -160,43 +336,129 @@ function draw(frame) {
   }
 }
 
-async function tick() {
-  try {
-    const s = await (await fetch("/api/state")).json();
-    const phaseEl = document.getElementById("phase");
-    phaseEl.textContent = s.phase;
-    phaseEl.className = s.phase;
-    document.getElementById("tip").textContent = s.time_in_phase.toFixed(0) + "s";
-    document.getElementById("dwell").textContent = s.sampled_dwell ? s.sampled_dwell.toFixed(0) + "s" : "—";
-    document.getElementById("count").textContent = s.eruption_count;
-    const co2El = document.getElementById("co2");
-    if (s.co2) {
-      co2El.textContent = (s.co2.remaining_fraction * 100).toFixed(0) + "%";
-      co2El.className = s.co2.alerted ? "low" : "";
+/* ---- state sync ---- */
+function fmt(s) { return s >= 90 ? `${Math.floor(s / 60)}m${String(Math.round(s % 60)).padStart(2, "0")}` : `${s.toFixed(0)}s`; }
+
+function sync(s) {
+  state = s;
+  for (const p of ["dormant", "active", "imminent", "eruption"])
+    $("ann-" + p).classList.toggle("lit", s.phase === p);
+
+  const band = $("armband");
+  band.classList.toggle("armed", s.armed);
+  band.innerHTML = s.armed
+    ? "<span>⚠ Pyro armed — flame &amp; CO2 live ⚠</span>"
+    : `<span>Pyro safe — disarmed${s.rehearsal ? " · rehearsal (locked by config)" : ""}</span>`;
+
+  $("modeTag").textContent =
+    (s.sim ? `sim ${s.sim.speed}×` : "live DMX") +
+    (s.hold ? " · held" : "") +
+    (s.paused ? " · paused" : s.pause_pending ? " · pause queued" : "");
+
+  $("tip").textContent = fmt(s.time_in_phase);
+  $("dwell").textContent = s.sampled_dwell ? fmt(s.sampled_dwell) : "—";
+  $("count").textContent = s.eruption_count;
+  if (s.co2) {
+    $("co2").textContent = (s.co2.remaining_fraction * 100).toFixed(0) + "%";
+    $("co2stat").classList.toggle("low", s.co2.alerted);
+  }
+
+  $("holdBtn").classList.toggle("pressed", s.hold);
+  $("holdBtn").textContent = s.hold ? "Release hold" : "Hold dormant";
+  $("pauseBtn").classList.toggle("pressed", s.paused || s.pause_pending);
+  $("pauseBtn").textContent = s.paused ? "Resume timing" : s.pause_pending ? "Pause queued…" : "Pause timing";
+  const armBtn = $("armBtn");
+  armBtn.textContent = s.armed ? "Disarm pyro" : "Arm pyro";
+  armBtn.classList.toggle("armed", s.armed);
+  $("triggerBtn").disabled = s.hold || s.cooldown_remaining > 0;
+  $("triggerSub").textContent =
+    s.hold ? "blocked — show is held in dormant"
+    : s.cooldown_remaining > 0 ? `cooling down — ready in ${Math.ceil(s.cooldown_remaining)}s`
+    : "runs the 30s warning first — always";
+
+  const test = s.test || { enabled: false };
+  $("testPanel").classList.toggle("on", test.enabled);
+  $("testBtn").textContent = test.enabled ? "Exit test mode" : "Enter test mode";
+  $("testBtn").classList.toggle("pressed", test.enabled);
+  if (test.enabled) {
+    for (const f of layout ? layout.fixtures : []) {
+      if (litPars[f.name]) litPars[f.name].classList.toggle("pressed", parOn(f, test.overrides));
+      if (f.name === "fogger" && document.activeElement !== $("fogRange")) {
+        const level = test.overrides[String(f.channels.fog)] || 0;
+        $("fogRange").value = level; $("fogVal").textContent = level;
+      }
     }
-    armed = s.armed;
-    const badge = document.getElementById("armed-badge");
-    badge.textContent = armed ? "ARMED" : "DISARMED";
-    badge.className = armed ? "armed" : "";
-    const armBtn = document.getElementById("armBtn");
-    armBtn.textContent = armed ? "Disarm pyro" : "Arm pyro";
-    armBtn.className = armed ? "armed" : "";
-    if (layout) draw(s.frame);
-  } catch (e) { /* engine restarting; keep polling */ }
+    updateReady("flame", $("flameReady"), $("fireFlame"), test.ready_in.flame);
+    updateReady("co2", $("co2Ready"), $("fireCo2"), test.ready_in.co2);
+  }
+  if (s.sim) {
+    $("simBar").classList.add("show");
+    for (const b of document.querySelectorAll("#simBar button"))
+      b.classList.toggle("pressed", Number(b.dataset.speed) === s.sim.speed);
+  }
+  if (layout) draw(s.frame);
 }
 
-document.getElementById("triggerBtn").onclick = () => fetch("/api/trigger", { method: "POST" });
-document.getElementById("tankBtn").onclick = () => {
-  if (confirm("Reset CO2 tank tracking? Only after physically connecting a fresh tank."))
-    fetch("/api/tank/reset", { method: "POST" });
+function updateReady(kind, readyEl, btn, gap) {
+  const blocked = gap > 0.05;
+  btn.disabled = blocked || !state.armed;
+  readyEl.textContent = blocked ? `${gap.toFixed(1)}s` : state.armed ? "ready" : "safe";
+}
+
+async function tick() {
+  try { sync(await (await fetch("/api/state")).json()); }
+  catch { say("Engine unreachable — retrying", true); }
+}
+
+/* ---- controls ---- */
+function parOn(f, overrides) {
+  return String(f.channels.dimmer) in overrides || String(f.channels.red) in overrides;
+}
+function buildTestPanel() {
+  const grid = $("parGrid");
+  for (const f of layout.fixtures) {
+    if (!f.name.startsWith("par")) continue;
+    const b = document.createElement("button");
+    b.textContent = f.name.toUpperCase();
+    b.onclick = () =>
+      post("/api/test/light", { name: f.name, on: !parOn(f, state.test.overrides) });
+    grid.appendChild(b);
+    litPars[f.name] = b;
+  }
+  const durs = { flame: [0.5, 1.0, 2.0], co2: [1.0, 3.0, 5.0, 10.0] };
+  for (const [kind, sel] of [["flame", $("flameDur")], ["co2", $("co2Dur")]])
+    for (const d of durs[kind].filter((d) => d <= layout.limits.max_burst[kind]))
+      sel.add(new Option(d.toFixed(1) + "s", d));
+}
+
+$("triggerBtn").onclick = () => post("/api/trigger");
+$("holdBtn").onclick = () => post("/api/hold", { on: !state.hold });
+$("pauseBtn").onclick = () => post("/api/pause", { on: !(state.paused || state.pause_pending) });
+$("armBtn").onclick = () => {
+  if (!state.armed && !confirm("Arm pyro?\n\nPhysical switch must already be on. Confirm operators are in position and the spray path is clear."))
+    return;
+  post(state.armed ? "/api/disarm" : "/api/arm");
 };
-document.getElementById("armBtn").onclick = () => {
-  if (!armed && !confirm("Arm pyro? Physical switch must also be on. Confirm operators are in position.")) return;
-  fetch(armed ? "/api/disarm" : "/api/arm", { method: "POST" });
+$("testBtn").onclick = () =>
+  post("/api/test/enable", { on: !(state.test && state.test.enabled) });
+$("fogRange").oninput = () => { $("fogVal").textContent = $("fogRange").value; };
+$("fogRange").onchange = () => post("/api/test/fog", { level: Number($("fogRange").value) });
+$("fireFlame").onclick = () => {
+  if (confirm(`Fire flame for ${$("flameDur").value}s?`))
+    post("/api/test/burst", { kind: "flame", duration: Number($("flameDur").value) });
 };
+$("fireCo2").onclick = () => post("/api/test/burst", { kind: "co2", duration: Number($("co2Dur").value) });
+$("tankBtn").onclick = () => {
+  if (confirm("Reset CO2 tank meter? Only after physically connecting a fresh tank."))
+    post("/api/tank/reset");
+};
+for (const b of document.querySelectorAll("#simBar button"))
+  b.onclick = () => post("/api/sim/speed", { speed: Number(b.dataset.speed) });
 
 (async () => {
   layout = await (await fetch("/api/layout")).json();
+  buildTestPanel();
+  say("Console ready.");
   setInterval(tick, 100);
 })();
 </script>

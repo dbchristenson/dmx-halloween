@@ -16,6 +16,20 @@ def frame_with_fire() -> bytearray:
     return frame
 
 
+def armable_gate() -> SafetyGate:
+    """A gate whose config interlock is open (show-night pyro_enabled=true)."""
+    return SafetyGate(pyro_channels=PYRO, enabled_by_config=True)
+
+
+def test_arm_refused_while_config_interlock_off():
+    gate = SafetyGate(pyro_channels=PYRO)  # rehearsal: enabled_by_config False
+    assert gate.arm() is False
+    assert gate.pyro_enabled is False
+    frame = frame_with_fire()
+    gate.clamp(frame, now=0.0)
+    assert frame[FLAME_FIRE - 1] == 0
+
+
 def test_disarmed_gate_zeroes_pyro_even_if_cue_wrote_values():
     gate = SafetyGate(pyro_channels=PYRO)
     frame = frame_with_fire()
@@ -30,7 +44,7 @@ def test_gate_starts_disarmed():
 
 
 def test_armed_without_permit_still_clamps():
-    gate = SafetyGate(pyro_channels=PYRO)
+    gate = armable_gate()
     gate.arm()
     frame = frame_with_fire()
     gate.clamp(frame, now=0.0)
@@ -38,7 +52,7 @@ def test_armed_without_permit_still_clamps():
 
 
 def test_permit_allows_then_expires():
-    gate = SafetyGate(pyro_channels=PYRO)
+    gate = armable_gate()
     gate.arm()
     assert gate.request_burst("flame", {FLAME_SAFETY, FLAME_FIRE}, 0.8, now=0.0)
     frame = frame_with_fire()
@@ -55,14 +69,14 @@ def test_burst_denied_when_disarmed():
 
 
 def test_overlong_burst_raises():
-    gate = SafetyGate(pyro_channels=PYRO)
+    gate = armable_gate()
     gate.arm()
     with pytest.raises(ValueError):
         gate.request_burst("flame", {FLAME_FIRE}, MAX_BURST["flame"] + 0.1, now=0.0)
 
 
 def test_min_gap_between_bursts():
-    gate = SafetyGate(pyro_channels=PYRO)
+    gate = armable_gate()
     gate.arm()
     assert gate.request_burst("co2", {CO2_JET}, 2.0, now=0.0)  # ends t=2
     assert not gate.request_burst("co2", {CO2_JET}, 2.0, now=2.0 + MIN_GAP["co2"] - 1)
@@ -70,7 +84,7 @@ def test_min_gap_between_bursts():
 
 
 def test_disarm_revokes_live_permits():
-    gate = SafetyGate(pyro_channels=PYRO)
+    gate = armable_gate()
     gate.arm()
     gate.request_burst("flame", {FLAME_FIRE}, 0.8, now=0.0)
     gate.disarm()
