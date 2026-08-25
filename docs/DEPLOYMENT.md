@@ -10,7 +10,7 @@
 | Dependencies | `uv sync --frozen` from `uv.lock` | bit-for-bit the locked versions everywhere |
 | Process manager | systemd (`deploy/dmx-volcano.service`) | auto-start on boot into safe dormant, auto-restart on crash, journald logging |
 | Serial | `/dev/enttec` via udev rule (`deploy/99-enttec.rules`) | stable name regardless of USB enumeration |
-| Secrets | `/home/pi/dmx-halloween/.env` (mode 600) | Twilio creds via systemd EnvironmentFile, never in git |
+| Secrets | `/home/dbchristenson/dmx-halloween/.env` (mode 600) | Twilio creds via systemd EnvironmentFile, never in git |
 
 ## Local emulation with Docker (on the Mac)
 
@@ -38,11 +38,12 @@ already proven on the target OS and architecture.
 ## Pi bring-up (once, ~30 minutes)
 
 1. **Flash**: Raspberry Pi Imager → "Raspberry Pi OS Lite (64-bit)". In the
-   Imager's settings gear, set hostname `volcano`, enable SSH, add the
-   Starlink WiFi credentials, user `pi`.
+   Imager's settings gear, set hostname `RBPI4-DMX`, enable SSH, add WiFi
+   credentials (home WiFi for bring-up; at the venue the Pi uses ethernet
+   into the Starlink router), user `dbchristenson`.
 2. **Base setup**:
    ```sh
-   ssh pi@volcano.local
+   ssh dbchristenson@rbpi4-dmx.local
    sudo apt update && sudo apt full-upgrade -y
    sudo apt install -y git alsa-utils
    curl -LsSf https://astral.sh/uv/install.sh | sh   # installs to ~/.local/bin
@@ -53,13 +54,13 @@ already proven on the target OS and architecture.
    cd ~/dmx-halloween
    uv sync --frozen        # fetches Python 3.13 + locked deps
    uv run pytest -q        # prove the environment on the Pi itself
-   uv run dmx-volcano      # sim smoke test; browse to http://volcano.local:8000
+   uv run dmx-volcano      # sim smoke test; browse to http://rbpi4-dmx.local:8000
    ```
 4. **Serial + permissions**:
    ```sh
    sudo cp deploy/99-enttec.rules /etc/udev/rules.d/
    sudo udevadm control --reload
-   sudo usermod -aG dialout,audio pi
+   sudo usermod -aG dialout,audio dbchristenson
    # replug the Enttec, then verify: ls -l /dev/enttec
    ```
 5. **Secrets** (only if SMS alerts wanted):
@@ -75,15 +76,15 @@ already proven on the target OS and architecture.
    ```
 
 After this, the Pi boots straight into the dormant show, disarmed, every
-time. Control page: `http://volcano.local:8000` from any phone on the
-Starlink network.
+time. Control page: `http://rbpi4-dmx.local:8000` from any phone on the
+same network as the Pi (Starlink at the venue).
 
 ## Update workflow
 
 Develop and test on the Mac (sim + Docker), then:
 
 ```sh
-ssh pi@volcano.local "cd dmx-halloween && git pull && uv sync --frozen && sudo systemctl restart dmx-volcano"
+ssh dbchristenson@rbpi4-dmx.local "cd dmx-halloween && git pull && uv sync --frozen && sudo systemctl restart dmx-volcano"
 ```
 
 Config-only tuning (show.toml) needs just the restart. Remember the restart

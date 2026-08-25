@@ -12,11 +12,11 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/dmx-halloween
+User=dbchristenson
+WorkingDirectory=/home/dbchristenson/dmx-halloween
 # Twilio credentials live here, mode 600, never in git:
-EnvironmentFile=-/home/pi/dmx-halloween/.env
-ExecStart=/home/pi/.local/bin/uv run dmx-volcano --real /dev/enttec
+EnvironmentFile=-/home/dbchristenson/dmx-halloween/.env
+ExecStart=/home/dbchristenson/.local/bin/uv run dmx-volcano --real /dev/enttec
 Restart=always
 RestartSec=3
 
