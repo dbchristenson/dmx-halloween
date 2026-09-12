@@ -129,6 +129,18 @@
   #fireCo2 { border-color: #1e4652; color: var(--ice); background: #0a1a1f; }
   .ready { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .78rem; color: var(--dust); align-self: center; min-width: 5.5ch; text-align: center; }
 
+  /* ---- audio panel ---- */
+  .arow { display: flex; gap: .5rem; align-items: baseline; padding: .26rem 0; flex-wrap: wrap; }
+  .akey { font: var(--label); letter-spacing: .12em; text-transform: uppercase; color: var(--dust); min-width: 10rem; }
+  .chip {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .78rem;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px;
+    padding: .15rem .45rem;
+  }
+  .chip.miss { color: var(--amber); border-color: #4d3a10; }
+  .chip.unassigned { color: var(--dust); border-style: dashed; }
+  .anote { font-size: .78rem; color: #574c40; }
+
   /* ---- console line + sim ---- */
   #msg {
     margin-top: .9rem; padding: .55rem .8rem; border-radius: 6px; min-height: 2.2rem;
@@ -206,6 +218,16 @@
       <span class="ready" id="co2Ready"></span>
     </div>
   </div>
+</section>
+
+<section id="audioPanel" style="display:none">
+  <h2>Audio</h2>
+  <div id="audioPools"></div>
+  <div class="sub">Import — copies into assets/; assign pools in show.toml, then restart</div>
+  <div class="row">
+    <button id="importBtn">Import audio file…</button>
+  </div>
+  <input type="file" id="audioFile" accept=".wav,.mp3,.ogg,.flac,.aiff,.aif,.m4a" multiple hidden>
 </section>
 
 <div id="simBar">
@@ -455,9 +477,78 @@ $("tankBtn").onclick = () => {
 for (const b of document.querySelectorAll("#simBar button"))
   b.onclick = () => post("/api/sim/speed", { speed: Number(b.dataset.speed) });
 
+/* ---- audio pools + import + preview ---- */
+function audioRow(root, key, entries) {
+  const row = document.createElement("div"); row.className = "arow";
+  const k = document.createElement("span"); k.className = "akey"; k.textContent = key;
+  row.appendChild(k);
+  for (const e of entries) {
+    const c = document.createElement("span");
+    c.className = "chip" + (e.missing ? " miss" : "") + (e.unassigned ? " unassigned" : "");
+    c.textContent = e.file + (e.missing ? " ⚠" : "");
+    if (e.missing) {
+      c.title = "referenced in show.toml but not in assets/";
+    } else {
+      c.title = (e.unassigned ? "in assets/ but not referenced by any pool — " : "")
+        + "click to play on the show speaker";
+      c.style.cursor = "pointer";
+      c.onclick = () =>
+        post("/api/audio/preview?name=" + encodeURIComponent(e.file));
+    }
+    row.appendChild(c);
+  }
+  if (!entries.length) {
+    const n = document.createElement("span"); n.className = "anote"; n.textContent = "—";
+    row.appendChild(n);
+  }
+  root.appendChild(row);
+}
+
+async function loadAudio() {
+  let a;
+  try { a = await (await fetch("/api/audio")).json(); } catch { return; }
+  if (a.ok === false) return;
+  $("audioPanel").style.display = "";
+  const root = $("audioPools");
+  root.replaceChildren();
+  for (const phase of ["dormant", "active", "imminent", "eruption"]) {
+    const p = a.phases[phase];
+    if (!p) continue;
+    for (const [role, entries] of Object.entries(p.roles)) {
+      const label = role === "accent"
+        ? `${phase} · accent (${p.accent_interval[0]}–${p.accent_interval[1]}s)`
+        : `${phase} · ${role}`;
+      audioRow(root, label, entries);
+    }
+  }
+  for (const [arrow, entries] of Object.entries(a.transitions))
+    audioRow(root, arrow.replace("->", " → "), entries);
+  const unassigned = a.assets.filter((f) => !f.assigned)
+    .map((f) => ({ file: f.file, unassigned: true }));
+  if (unassigned.length) audioRow(root, "unassigned", unassigned);
+}
+
+$("importBtn").onclick = () => $("audioFile").click();
+$("audioFile").onchange = async () => {
+  for (const file of $("audioFile").files) {
+    try {
+      const r = await fetch("/api/audio/upload?name=" + encodeURIComponent(file.name),
+        { method: "POST", body: file });
+      const data = await r.json();
+      if (data.ok === false) say(data.reason, true);
+      else say(`imported ${data.file}` +
+        (data.replaced ? " (replaced)" : "") +
+        (data.assigned ? "" : " — add it to [audio] in show.toml to use it"));
+    } catch { say("upload failed — engine unreachable?", true); }
+  }
+  $("audioFile").value = "";
+  loadAudio();
+};
+
 (async () => {
   layout = await (await fetch("/api/layout")).json();
   buildTestPanel();
+  loadAudio();
   say("Console ready.");
   setInterval(tick, 100);
 })();

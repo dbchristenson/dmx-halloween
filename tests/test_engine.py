@@ -21,6 +21,7 @@ DT = 1 / 40
 @pytest.fixture
 def engine(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)  # EventLog and CO2 state write under cwd
+    monkeypatch.setattr("dmx_volcano.audio.play", lambda p: None)  # keep tests silent
     eng, state, _ = build_engine(CONFIG, FakeDriver())
     eng.gate.enabled_by_config = True  # show-night config: pyro_enabled=true
     eng.machine.start(0.0)

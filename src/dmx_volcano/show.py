@@ -14,7 +14,6 @@ lives in config/show.toml — see docs/SHOW_AUTHORING.md.
 
 import argparse
 import signal
-import subprocess
 import threading
 import time
 import tomllib
@@ -22,7 +21,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .audio import play, stop
+from .audio import LayeredPlayer, SoundBank, play
 from .co2 import CO2Tracker
 from .cues import ERUPTION, Cue, CueRunner, load_timeline
 from .driver.fake import FakeDriver
@@ -177,7 +176,7 @@ class ShowEngine:
         state: ShowState | None = None,
         timeline: list[Cue] | None = None,
         looks: dict | None = None,
-        phase_sounds: dict[str, str] | None = None,
+        sounds: SoundBank | None = None,
         co2: CO2Tracker | None = None,
         sms: SmsConfig | None = None,
         console: TestConsole | None = None,
@@ -193,12 +192,12 @@ class ShowEngine:
         self.sms = sms or SmsConfig()
         self.looks = looks or build_looks({})
         self.looks["imminent"].setdefault("duration", machine.config.imminent_duration)
-        self.phase_sounds = phase_sounds or {}
+        self.sounds = sounds
+        self.audio = LayeredPlayer(sounds) if sounds is not None else None
         self.universe = Universe()
         self.overlay = EffectOverlay()
         self.runner = CueRunner(timeline if timeline is not None else ERUPTION)
         self._prev_phase = machine.phase
-        self._ambient_proc: subprocess.Popen | None = None
         machine.on_transition = self._on_transition
 
     def _on_transition(self, t: Transition) -> None:
@@ -206,13 +205,22 @@ class ShowEngine:
             "transition", frm=t.frm.value, to=t.to.value, cause=t.cause,
             sampled_dwell=t.sampled_dwell, actual_elapsed=t.actual_elapsed,
         )
-        stop(self._ambient_proc)
-        sound = self.phase_sounds.get(t.to.value)
-        self._ambient_proc = play(ASSETS_DIR / sound) if sound else None
+        if self.audio is not None:
+            self.audio.enter_phase(t.frm.value, t.to.value)
+
+    def stop_audio(self) -> None:
+        if self.audio is not None:
+            self.audio.stop_all()
 
     def step(self, now: float) -> bytes:
         self.machine.tick(now)
         phase = self.machine.phase
+        if self.audio is not None:
+            if self.audio.phase is None:
+                # First frame after startup: no transition fired, so begin
+                # the boot phase's layers (dormant has a bed too).
+                self.audio.enter_phase(phase.value, phase.value)
+            self.audio.tick(now)  # loop respawns + accent scheduling
 
         if phase is Phase.ERUPTION and self._prev_phase is not Phase.ERUPTION:
             self.runner.start(now)
@@ -340,8 +348,21 @@ def build_engine(
     timeline_cfg = raw.get("cues", {}).get("eruption")
     timeline = load_timeline(timeline_cfg) if timeline_cfg else None
 
+    sounds = SoundBank.from_config(raw.get("audio", {}), ASSETS_DIR)
+    missing = sounds.missing_files()
+    if missing:
+        # Loud at startup, tolerated at play time: the show runs, silently.
+        log.write("audio_missing", files=missing)
+        print(
+            f"WARNING: audio files referenced but not in assets/: {', '.join(missing)}",
+            flush=True,  # stdout is block-buffered under systemd
+        )
+
     state = (
-        ShowState(rig=rig, gate=gate, machine=machine, log=log, co2=co2, console=console)
+        ShowState(
+            rig=rig, gate=gate, machine=machine, log=log, co2=co2,
+            console=console, sounds=sounds,
+        )
         if with_state
         else None
     )
@@ -349,7 +370,7 @@ def build_engine(
         rig, gate, machine, driver, log, state,
         timeline=timeline,
         looks=build_looks(raw),
-        phase_sounds=raw.get("audio", {}),
+        sounds=sounds,
         co2=co2,
         sms=sms_config_from(raw),
         console=console,
@@ -410,6 +431,7 @@ def main() -> None:
         engine.universe.blackout()
         driver.send_frame(engine.universe.as_bytes())
         driver.close()
+        engine.stop_audio()
         engine.log.write("shutdown")
 
 

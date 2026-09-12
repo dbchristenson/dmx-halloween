@@ -12,15 +12,19 @@ than HTTP errors — the page shows the reason instead of breaking polling.
 
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
+from ..audio import list_assets, play, resolve_asset, safe_asset_name
 from ..phases import Phase
 from ..safety import MAX_BURST, MIN_GAP
 from ..state import ShowState
 
 INDEX_PATH = Path(__file__).parent / "static" / "index.html"
+CO2CAL_PATH = Path(__file__).parent / "static" / "co2cal.html"
+
+MAX_AUDIO_UPLOAD = 50 * 1024 * 1024  # a show stinger, not an album
 
 # Default look for a light toggled on in test mode: warm amber, full dimmer.
 TEST_LIGHT_COLOR = (255, 140, 40)
@@ -59,6 +63,12 @@ def create_app(state: ShowState) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
         return INDEX_PATH.read_text()
+
+    @app.get("/co2cal", response_class=HTMLResponse)
+    def co2cal() -> str:
+        """Unlinked utility page: CO2 draw-rate calibration (weigh-between-
+        bursts). Drives only the existing test-mode/arm/burst endpoints."""
+        return CO2CAL_PATH.read_text()
 
     @app.get("/api/layout")
     def layout() -> dict:
@@ -228,6 +238,73 @@ def create_app(state: ShowState) -> FastAPI:
         if state.clock is None:
             return refuse("fast-forward is sim-only (real DMX is attached)")
         return {"ok": True, "speed": state.clock.set_speed(req.speed)}
+
+    @app.get("/api/audio")
+    def audio_info() -> dict:
+        """The sound pools as configured, plus every audio file in assets/
+        (flagging which are referenced by no pool — imported but unassigned)."""
+        bank = state.sounds
+        if bank is None:
+            return refuse("audio not configured")
+        referenced = bank.referenced()
+        return {
+            "ok": True,
+            **bank.describe(),
+            "assets": [
+                {"file": f, "assigned": f in referenced}
+                for f in list_assets(bank.assets_dir)
+            ],
+        }
+
+    @app.post("/api/audio/upload")
+    async def audio_upload(name: str, request: Request) -> dict:
+        """Import an audio file into assets/ (raw request body). Assigning it
+        to a phase/transition pool stays a config edit: [audio.phases] /
+        [audio.transitions] in show.toml, then restart."""
+        bank = state.sounds
+        if bank is None:
+            return refuse("audio not configured")
+        try:
+            clean = safe_asset_name(name)
+        except ValueError as e:
+            return refuse(str(e))
+        data = await request.body()
+        if not data:
+            return refuse("empty upload")
+        if len(data) > MAX_AUDIO_UPLOAD:
+            return refuse(f"file exceeds {MAX_AUDIO_UPLOAD // (1024 * 1024)}MB limit")
+        bank.assets_dir.mkdir(parents=True, exist_ok=True)
+        target = bank.assets_dir / clean
+        replaced = target.exists()
+        target.write_bytes(data)
+        state.log.write(
+            "operator", action="audio_import", file=clean,
+            bytes=len(data), replaced=replaced,
+        )
+        return {
+            "ok": True,
+            "file": clean,
+            "replaced": replaced,
+            "assigned": clean in bank.referenced(),
+        }
+
+    @app.post("/api/audio/preview")
+    def audio_preview(name: str) -> dict:
+        """Line-check: play one asset out the real speaker through the exact
+        production path (same player, same ALSA route as the show)."""
+        bank = state.sounds
+        if bank is None:
+            return refuse("audio not configured")
+        try:
+            path = resolve_asset(bank.assets_dir, name)
+        except ValueError as e:
+            return refuse(str(e))
+        if not path.exists():
+            return refuse(f"{name} is not in assets/")
+        if play(path) is None:
+            return refuse("no audio player found (afplay/aplay/mpg123)")
+        state.log.write("operator", action="audio_preview", file=name)
+        return {"ok": True, "file": name}
 
     @app.post("/api/tank/reset")
     def tank_reset() -> dict:

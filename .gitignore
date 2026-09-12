@@ -7,3 +7,5 @@ var/
 .pytest_cache/
 dist/
 .claude/settings.local.json
+assets/sounds/
+.DS_Store

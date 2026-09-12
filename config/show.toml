@@ -53,12 +53,45 @@ auth_token = ""
 from_number = ""
 
 # --- Audio --------------------------------------------------------------
-# Sound file (relative to assets/) played once on entering each phase.
-# Eruption audio belongs in the cue timeline below instead.
+# Files are relative to assets/ (drop them there, or import via the web
+# page's Audio panel). Every pool picks at random each time it fires, never
+# the same file twice in a row while the pool has alternatives. Layer
+# loudness is baked into the files (normalize the corpus; there is no
+# per-layer gain). Eruption's big sync'd sound belongs in the cue timeline
+# below instead.
+#
+# Roles within a phase:
+#   start  = one-shot on phase entry
+#   loop   = the base bed; respawns when it ends (multi-file pools re-pick
+#            per cycle, so the bed evolves)
+#   bg     = second looping texture layer
+#   accent = one-shots sprinkled at random accent_interval = [min, max]
+#            seconds while the phase runs
 
-[audio]
-active = "rumble.wav"
-imminent = "warning.wav"
+[audio.phases.dormant]
+loop = ["sounds/dormant/dormant_loop_1.wav", "sounds/dormant/dormant_loop_2.wav"]
+accent = ["sounds/dormant/dormant_accent_1.wav"]
+accent_interval = [45.0, 120.0]   # sparse: dormant should feel mostly asleep
+
+[audio.phases.active]
+loop = ["sounds/active/active_loop_1.wav", "sounds/active/active_loop_2.wav"]
+
+[audio.phases.imminent]
+loop = ["sounds/imminent/imminent_loop_1.wav"]
+accent = ["sounds/imminent/imminent_accent_1.wav", "sounds/imminent/imminent_accent_2.wav"]
+accent_interval = [6.0, 12.0]     # dense: 30s phase, guarantee a few hits
+
+[audio.phases.eruption]
+start = ["sounds/eruption/eruption_start_1.wav", "sounds/eruption/eruption_start_2.wav"]
+accent = ["sounds/eruption/eruption_accent_1.wav"]
+accent_interval = [6.0, 10.0]
+
+# Stingers layered over the new phase's audio when the show makes exactly
+# this move — the audible cue that the volcano is advancing. Keys are
+# "<from>-><to>" over dormant / active / imminent / eruption. No stinger
+# files in the corpus yet — add e.g.:
+#   [audio.transitions]
+#   "dormant->active" = ["sounds/transitions/stir.wav"]
 
 # --- Lighting looks -----------------------------------------------------
 # Per-phase render parameters; anything set here overrides the defaults in
@@ -90,11 +123,8 @@ strobe_hz = 8.0
 # t = seconds from eruption start. Pyro cues must respect the safety gate
 # (flame: <=2.0s bursts, >=3s gap; co2: <=10s bursts, >=5s gap) or they are
 # DENIED and logged with granted=false. The gate wins, by design.
-
-[[cues.eruption]]
-t = 0.0
-action = "sound"
-file = "eruption.wav"
+# The eruption entry roar comes from [audio.phases.eruption] start; use a
+# sound cue here only for audio sync'd to a mid-timeline moment.
 
 [[cues.eruption]]
 t = 2.0

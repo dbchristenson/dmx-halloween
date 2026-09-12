@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CO2 Draw-Rate Calibration</title>
+<!-- Hidden utility page (deliberately unlinked from the console): fires
+     fixed 1s CO2 bursts through the normal test-mode + SafetyGate path so
+     the operator can weigh the tank between trials and compute rate_kg_per_s.
+     No new burst mechanism lives here — only /api/test/* and /api/arm. -->
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0a0908;
+    --panel: #171310;
+    --panel-2: #1f1914;
+    --line: #2c251c;
+    --ash: #e9e1d3;
+    --dust: #8f8676;
+    --magma: #ff4f1f;
+    --amber: #ffb129;
+    --ice: #9ed9e8;
+    --danger: #ff2e2e;
+    --label: 600 .72rem/1 "Avenir Next Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--bg); color: var(--ash);
+    font: 16px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif;
+    max-width: 640px; margin: 0 auto; padding: 1rem 1rem 3rem;
+  }
+  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; }
+  .lbl { font: var(--label); letter-spacing: .18em; text-transform: uppercase; color: var(--dust); }
+  h1 { font: var(--label); font-size: .9rem; letter-spacing: .22em; text-transform: uppercase; margin-bottom: 1rem; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+  ol { padding-left: 0; list-style: none; counter-reset: step; }
+  ol li {
+    counter-increment: step; display: flex; align-items: flex-start; gap: .7rem;
+    padding: .65rem 0; border-bottom: 1px solid var(--line);
+  }
+  ol li:last-child { border-bottom: 0; }
+  ol li::before {
+    content: counter(step); flex: 0 0 1.6rem; height: 1.6rem; border-radius: 50%;
+    border: 1px solid var(--line); color: var(--dust); text-align: center;
+    font: 600 .85rem/1.6rem ui-monospace, Menlo, monospace;
+  }
+  ol li label { flex: 1; display: flex; gap: .7rem; align-items: flex-start; cursor: pointer; }
+  ol li input[type=checkbox] { width: 1.35rem; height: 1.35rem; margin-top: .1rem; accent-color: var(--amber); flex: 0 0 auto; }
+  ol li small { display: block; color: var(--dust); font-size: .82rem; }
+  button {
+    font: inherit; font-weight: 650; color: var(--ash);
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+    padding: .8rem 1rem; cursor: pointer; min-height: 48px;
+  }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  #startBtn { width: 100%; margin-top: 1rem; font-size: 1.05rem;
+    background: linear-gradient(#3a1206, #2a0d04); border-color: #6b2410; color: #ffc9b3; }
+  #startBtn:not(:disabled):hover { border-color: var(--magma); }
+  .warn { color: var(--danger); margin-top: .8rem; font-size: .9rem; min-height: 1.2rem; }
+  .note { color: var(--dust); font-size: .85rem; margin-top: .8rem; }
+
+  /* ---- fire screen: everything drops away ---- */
+  #fireScreen { display: none; position: fixed; inset: 0; background: var(--bg);
+    flex-direction: column; align-items: center; justify-content: center; gap: 1.2rem; padding: 1rem; }
+  body.firing #setup { display: none; }
+  body.firing #fireScreen { display: flex; }
+  #fireBtn {
+    width: min(78vw, 66vh); height: min(78vw, 66vh); border-radius: 50%;
+    font-size: clamp(1.3rem, 6vw, 2.2rem); font-weight: 800; letter-spacing: .05em;
+    background: radial-gradient(circle at 35% 30%, #4a1808, #2a0d04 70%);
+    border: 3px solid #6b2410; color: #ffc9b3; touch-action: manipulation;
+  }
+  #fireBtn:not(:disabled):active { background: radial-gradient(circle at 35% 30%, #7a2a0e, #3a1206 70%); border-color: var(--magma); }
+  #fireBtn:disabled { opacity: .55; }
+  #fireBtn small { display: block; font-weight: 500; font-size: .95rem; color: #c98668; margin-top: .4rem; }
+  #trialCount { font-size: 1.1rem; }
+  #fireMsg { color: var(--danger); min-height: 1.3rem; font-size: .95rem; text-align: center; }
+  #trials { width: 100%; max-width: 420px; max-height: 22vh; overflow-y: auto; font-size: .9rem; }
+  #trials div { display: flex; justify-content: space-between; padding: .2rem .4rem; border-bottom: 1px solid var(--line); color: var(--dust); }
+  #endBtn { background: none; border: none; color: var(--dust); text-decoration: underline; min-height: 0; padding: .4rem; font-weight: 400; }
+</style>
+</head>
+<body>
+
+<div id="setup">
+  <h1>CO2 Draw-Rate Calibration</h1>
+  <section>
+    <div class="lbl">Setup checks — all required</div>
+    <ol id="checks">
+      <li><label><input type="checkbox"><span>Show is <b>dormant</b> and nobody is mid-rehearsal
+        <small>Starting a session pins the show dormant (hold), same as test mode.</small></span></label></li>
+      <li><label><input type="checkbox"><span>Tank connected, siphon valve fully open
+        <small>A fresh tank is ideal but any tank of known weight works.</small></span></label></li>
+      <li><label><input type="checkbox"><span>Scale ready — <b>weigh the tank now</b> and write down the starting weight
+        <small>You'll weigh again between bursts; the whole method is weight deltas.</small></span></label></li>
+      <li><label><input type="checkbox"><span>Pi is driving the real Enttec (started with <span class="mono">--real</span>), DMX chain plugged through to the cannon</span></label></li>
+      <li><label><input type="checkbox"><span>Cannon's start address on its own display matches config: <b class="mono" id="co2addr">…</b>
+        <small>Read it off the device — fixtures can't be probed safely.</small></span></label></li>
+      <li><label><input type="checkbox"><span>Physical arm switch ON; area clear, jet pointed away from people and anything fragile</span></label></li>
+    </ol>
+    <button id="startBtn" disabled>Start session</button>
+    <div class="warn" id="setupMsg"></div>
+    <div class="note" id="summary"></div>
+    <div class="note">Every burst here is a fixed <b>1.0s</b> fire through the normal SafetyGate
+      (max 10s, min 5s gap) and lands in the event log like any test burst.</div>
+  </section>
+</div>
+
+<div id="fireScreen">
+  <div class="lbl" id="trialCount">Trial 0</div>
+  <button id="fireBtn">FIRE<small>1.0s burst</small></button>
+  <div id="fireMsg"></div>
+  <div id="trials"></div>
+  <button id="endBtn">end session (disarm + exit test mode)</button>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const post = (url, body) =>
+  fetch(url, { method: "POST", headers: { "Content-Type": "application/json" },
+               body: body === undefined ? undefined : JSON.stringify(body) })
+    .then(r => r.json());
+
+const DURATION = 1.0;
+let trial = 0;
+let pending = false;          // waiting for the frame loop to adjudicate
+let lastBurstAt = null;       // last /api/state test.last_burst.at we've seen
+
+fetch("/api/layout").then(r => r.json()).then(layout => {
+  const co2 = layout.fixtures.find(f => f.name === "co2");
+  $("co2addr").textContent = co2
+    ? String(Math.min(...Object.values(co2.channels))).padStart(3, "0")
+    : "no co2 fixture in config!";
+});
+
+const boxes = [...document.querySelectorAll("#checks input")];
+const refreshStart = () => { $("startBtn").disabled = !boxes.every(b => b.checked); };
+boxes.forEach(b => b.onchange = refreshStart);
+
+$("startBtn").onclick = async () => {
+  $("setupMsg").textContent = "";
+  const test = await post("/api/test/enable", { on: true });
+  if (!test.ok) { $("setupMsg").textContent = test.reason; return; }
+  const arm = await post("/api/arm");
+  if (!arm.ok) { $("setupMsg").textContent = arm.reason; return; }
+  const state = await fetch("/api/state").then(r => r.json());
+  lastBurstAt = state.test && state.test.last_burst ? state.test.last_burst.at : null;
+  document.body.classList.add("firing");
+};
+
+$("fireBtn").onclick = async () => {
+  if (pending) return;
+  pending = true;
+  $("fireMsg").textContent = "";
+  render(null);
+  const res = await post("/api/test/burst", { kind: "co2", duration: DURATION });
+  if (!res.ok) { pending = false; $("fireMsg").textContent = res.reason; }
+  // granted/denied verdict arrives via polling (the frame loop adjudicates)
+};
+
+$("endBtn").onclick = async () => {
+  await post("/api/disarm");
+  await post("/api/test/enable", { on: false });
+  document.body.classList.remove("firing");
+  const total = (trial * DURATION).toFixed(1);
+  $("setupMsg").textContent = "";
+  $("summary").innerHTML =
+    `Session done: <b>${trial}</b> granted bursts, <b class="mono">${total}s</b> total valve-open time.<br>` +
+    `<span class="mono">rate_kg_per_s = (start weight − end weight) / ${total}</span><br>` +
+    `Update <span class="mono">[co2] rate_kg_per_s</span> in show.toml, then reset the tank ` +
+    `from the main console. The show is still <b>held dormant</b> — release hold there too.`;
+};
+
+function render(readyIn) {
+  const btn = $("fireBtn");
+  if (pending) { btn.disabled = true; btn.innerHTML = "FIRING<small>1.0s burst</small>"; }
+  else if (readyIn > 0) { btn.disabled = true;
+    btn.innerHTML = `WAIT ${readyIn.toFixed(1)}s<small>gap between bursts</small>`; }
+  else { btn.disabled = false; btn.innerHTML = "FIRE<small>1.0s burst</small>"; }
+  $("trialCount").textContent = `Trial ${trial}`;
+}
+
+async function poll() {
+  if (!document.body.classList.contains("firing")) return;
+  try {
+    const state = await fetch("/api/state").then(r => r.json());
+    const test = state.test;
+    if (!test || !test.enabled) return;  // console dropped out from under us
+    const last = test.last_burst;
+    if (pending && last && last.at !== lastBurstAt) {
+      lastBurstAt = last.at;
+      pending = false;
+      if (last.granted) {
+        trial += 1;
+        const row = document.createElement("div");
+        row.innerHTML = `<span>Trial ${trial}</span><span class="mono">` +
+          `${new Date().toLocaleTimeString()}</span><span>weight: ______</span>`;
+        $("trials").prepend(row);
+      } else {
+        $("fireMsg").textContent = "burst DENIED by safety gate (gap not elapsed or disarmed)";
+      }
+    }
+    render(test.ready_in.co2);
+  } catch (e) { /* transient network blip: keep polling */ }
+}
+setInterval(poll, 400);
+</script>
+</body>
+</html>

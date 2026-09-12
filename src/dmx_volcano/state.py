@@ -9,6 +9,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any
 
+from .audio import SoundBank
 from .co2 import CO2Tracker
 from .events import EventLog
 from .fixtures import Rig
@@ -25,6 +26,7 @@ class ShowState:
     log: EventLog
     co2: CO2Tracker | None = None
     console: TestConsole | None = None
+    sounds: SoundBank | None = None
     clock: Any = None  # SimClock in sim mode, None on the real wire
     lock: threading.Lock = field(default_factory=threading.Lock)
     latest_frame: bytes = bytes(512)

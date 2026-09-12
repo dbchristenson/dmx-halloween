@@ -92,7 +92,7 @@ src/dmx_volcano/
 ├── stats.py             # dwell-time distributions
 ├── cues.py              # scripted eruption timeline + CueRunner
 ├── events.py            # JSONL event log
-├── audio.py             # aux-out playback
+├── audio.py             # sound pools (per-phase + per-transition) + aux-out playback
 ├── web/                 # FastAPI control page + 2D visualizer
 └── show.py              # entry point: 40Hz frame loop
 config/show.toml         # all tuning: dwell params, addresses, channel maps
@@ -112,6 +112,19 @@ tests/                   # safety invariants, state machine, wire format
   console (dormant + hold only): light/fog toggles, and time-boxed CO2/flame
   test bursts through the same SafetyGate as cues — never free-running
   toggles. Assumptions made while building it: `docs/REVISIT.md`.
+- **Audio:** layered per phase from role pools (`[audio.phases.<phase>]`):
+  `start` one-shot on entry, a respawning `loop` bed, a `bg` texture layer,
+  and `accent` one-shots at randomly sampled intervals; `[audio.transitions]`
+  stingers layer on top when the show makes that exact move — the audible
+  "it's advancing" cue. Every pool picks at random, no back-to-back repeats.
+  Layers are concurrent player processes (dmix on the Pi:
+  `deploy/asound.conf`); relative loudness is authored into the files — no
+  runtime gain to tune blind at the venue. The speaker itself is dumb: aux
+  line-level from the Pi, no DMX involved. Files are imported by dropping
+  into `assets/` or uploading from the web page's Audio panel, which also
+  previews any file out the real speaker (the venue line check); pool
+  assignment stays a config edit + restart, keeping `show.toml` the single
+  source of show content. Missing files warn at startup, not on show night.
 - **Deployment:** systemd service, auto-start on boot into safe dormant,
   auto-restart on crash.
 

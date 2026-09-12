@@ -12,30 +12,76 @@ effect didn't fire — the log tells you exactly which cue was denied and when.
 
 ## 1. Sounds
 
-Drop audio files into the **`assets/`** directory at the repo root
-(`.wav` is safest; anything your player supports works — the Pi uses
-`aplay`/`mpg123`, macOS dev uses `afplay`).
+**Importing files.** Drop audio files into the **`assets/`** directory at
+the repo root — subfolders are fine, and the corpus convention is
+`assets/sounds/<phase>/` — or use the control page's **Audio → Import**
+button, which copies files into `assets/` over the network (handy on the
+headless Pi). Config references are paths relative to `assets/`
+(`"sounds/active/active_loop_1.wav"`). Prefer 44.1kHz/16-bit stereo `.wav`
+(the dmix slave format — zero resampling at show time); anything your
+player supports works — the Pi uses `aplay`/`mpg123`, macOS dev uses
+`afplay`. Accepted types: `.wav .mp3 .ogg .flac .aiff .aif .m4a`.
 
-Two ways sound gets played:
-
-**Phase-entry sounds** — played once when the show enters a phase:
+**Phase audio is layered.** Each phase's soundscape is built from role
+pools in `[audio.phases.<phase>]`; every pool picks a file at random each
+time it fires (never the same file twice in a row while the pool has
+alternatives), so repeat visitors don't hear an identical show:
 
 ```toml
-[audio]
-active = "rumble.wav"      # relative to assets/
-imminent = "warning.wav"
+[audio.phases.active]
+start = ["awaken.wav"]                  # one-shot the moment the phase begins
+loop = ["rumble1.wav", "rumble2.wav"]   # the base bed — loops for the whole phase
+bg = ["wind.wav"]                       # second looping layer under/over the bed
+accent = ["crack.wav", "hiss.wav"]      # one-shots sprinkled in for texture
+accent_interval = [12.0, 40.0]          # seconds between accents (uniform sample)
 ```
 
-A phase with no entry (like `dormant`, silent by design) is simply omitted.
-The previous phase's sound is stopped on every transition. There is no
-looping yet — pick files roughly as long as the phase, or ask for looping
-to be added.
+| Role | Behavior |
+|---|---|
+| `start` | played once on phase entry |
+| `loop` | picked at random, replayed every time it ends until the phase exits — a multi-file pool re-picks per cycle, so the bed evolves |
+| `bg` | same looping mechanics as `loop`; a second concurrent texture layer |
+| `accent` | a one-shot fires every `accent_interval = [min, max]` seconds (default `[10, 30]`), random pick each time; at most 3 sound at once |
+
+Every role is optional. A phase with no table (like `dormant`, silent by
+design) is simply omitted; a bare `active = ["rumble.wav"]` still works as
+shorthand for a `start` one-shot. All of a phase's layers stop on phase
+exit. Loop respawning has a few-ms gap at the file boundary — author loop
+files with matched head/tail (or a beat of room tone) so the seam hides.
+
+**Relative loudness is authored into the files.** There is no per-layer
+gain: normalize the corpus so beds sit low and accents poke through
+(e.g. loops around −20 LUFS, accents peaking ~6–10 dB hotter). This is
+deliberate — one less thing to tune blind at the venue.
+
+**Transition stingers** — pools keyed by `"<from>-><to>"`, played once, on
+top of the new phase's layers, when the show makes exactly that move — the
+audio cue that the volcano is advancing:
+
+```toml
+[audio.transitions]
+"dormant->active" = ["stir1.wav", "stir2.wav"]  # random, like any pool
+"active->imminent" = ["escalate.wav"]
+```
+
+Every direction is addressable, so an escalation (`active->imminent`) can
+sound different from a fizzle (`active->dormant`). Unlisted transitions are
+silent.
 
 **Cue sounds** — fired at exact moments inside the eruption timeline (see
 below), e.g. the roar synced to the first flame burst.
 
-Missing files are silently skipped (so sim mode works without assets), but
-nothing tells you at show time — test with sound before opening night.
+Files referenced in config but missing from `assets/` are flagged at
+startup (console warning + `audio_missing` log event) and shown with a ⚠ in
+the control page's Audio panel — playback just skips them, so sim mode
+works without assets. The Audio panel also lists imported files not yet
+referenced by any pool, and clicking any present file plays it out the
+show speaker (the venue line check). Assigning a file is always a
+`show.toml` edit + restart; a phase or role typo in `[audio]` refuses to
+start, rather than failing silently on show night.
+
+On the Pi, layering needs the dmix ALSA config (`deploy/asound.conf`) —
+see `docs/DEPLOYMENT.md` § Audio out.
 
 ## 2. Lighting looks
 

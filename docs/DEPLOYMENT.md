@@ -79,12 +79,54 @@ After this, the Pi boots straight into the dormant show, disarmed, every
 time. Control page: `http://rbpi4-dmx.local:8000` from any phone on the
 same network as the Pi (Starlink at the venue).
 
+## Audio out (the speaker)
+
+The speaker needs no DMX and never touches the universe — it is a plain
+audio device fed line-level from the Pi over a 3.5mm aux cable. Any powered
+speaker with an aux/line input works as-is.
+
+**Wiring**: Pi 3.5mm jack → aux cable → speaker line-in. Set the Pi's ALSA
+volume high (~85%, `alsamixer`, then `sudo alsactl store` to persist) and do
+the real level setting on the speaker's own gain — a hot-ish line signal
+into a low amp gain keeps the noise floor down.
+
+**Software mixing is required.** The engine layers several sounds at once
+(loop bed + bg + accents + transition stingers = one player process each),
+and Pi OS Lite's bare ALSA only lets one process open the device — every
+other layer dies with "device busy". Install the dmix config:
+
+```sh
+sudo cp deploy/asound.conf /etc/asound.conf
+# verify: both must sound at the same time
+aplay assets/<a>.wav & aplay assets/<b>.wav
+```
+
+**Known quirk**: the Pi 4's 3.5mm jack is PWM-driven — through a big
+amplified speaker expect an audible hiss/noise floor. If it bothers you at
+show volume, a $10–15 class-compliant USB DAC fixes it: plug it in, find its
+card number with `aplay -l`, set that number in `/etc/asound.conf` (both
+places), done. Nothing in the show code changes; try the jack first.
+
+**Line check without running the show**: on the control page's Audio panel,
+click any file chip — it plays out the speaker through the exact production
+path (`POST /api/audio/preview`). Do this at the venue after cabling, before
+opening. Startup also logs an `audio_missing` event (and a journal warning)
+if config references files that aren't in `assets/`.
+
 ## Update workflow
 
 Develop and test on the Mac (sim + Docker), then:
 
 ```sh
 ssh dbchristenson@rbpi4-dmx.local "cd dmx-halloween && git pull && uv sync --frozen && sudo systemctl restart dmx-volcano"
+```
+
+The audio corpus (`assets/sounds/`) is gitignored — 44MB of WAV doesn't
+belong in the repo — so after adding or changing sound files, push them
+separately before the restart:
+
+```sh
+rsync -av --delete assets/sounds/ dbchristenson@rbpi4-dmx.local:dmx-halloween/assets/sounds/
 ```
 
 Config-only tuning (show.toml) needs just the restart. Remember the restart
