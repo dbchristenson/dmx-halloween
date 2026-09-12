@@ -590,6 +590,7 @@ dialog::backdrop {
   }
 }
 </style>
+<link rel="stylesheet" href="/static/pro-view.css">
 </head>
 <body><svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs>
 <symbol id="i-volcano" viewBox="0 0 48 48"><path d="M5 40 18 17l6 3 6-3 13 23Z" fill="currentColor" opacity=".16"/><path d="m5 40 13-23 6 3 6-3 13 23H5Z M16 21l3 9 5-4 5 6 3-10 M20 11l-3-5m7 5V3m4 8 4-5" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round"/></symbol>
@@ -615,8 +616,18 @@ dialog::backdrop {
   <div id="armband" role="status"><span>Pyro disarmed</span></div>
 </header>
 
-<main><div class="workspace"><div class="stage-panel"><div class="stage-heading"><h2>Live stage</h2><span>Top view</span></div>
+<main><div class="workspace"><div class="stage-panel"><div class="stage-heading"><h2>Live stage</h2><span id="stageViewLabel">Top view</span></div>
 <canvas id="stage" width="640" height="560" role="img" aria-label="Top view of volcano and live fixture output" aria-describedby="stageDescription"></canvas>
+<div id="proPanel" hidden>
+  <div class="pro-viewport">
+    <div id="proHost"></div>
+    <div class="pro-overlay"><span id="proConnection">Waiting for output…</span><span>3D lighting preview</span></div>
+    <div id="proLoading" class="pro-loading" role="status"><span id="proStatus">Loading the volcano…</span><button id="proRetry" hidden>Retry 3D view</button></div>
+    <div class="pro-tools" aria-label="3D camera controls"><button id="proZoomIn" aria-label="Zoom in">+</button><button id="proZoomOut" aria-label="Zoom out">−</button><button id="proReset">Reset view</button></div>
+  </div>
+  <p id="proInstructions">Drag or swipe to orbit · Scroll or pinch to zoom</p>
+  <div id="proFixtures" aria-label="Live fixture colors"></div>
+</div>
 <div class="legend" id="stageDescription"><span><svg class="icon" aria-hidden="true"><use href="#i-light"/></svg>Lights</span><span><svg class="icon" aria-hidden="true"><use href="#i-fog"/></svg>Fog</span><span><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg>Flame</span><span><svg class="icon" aria-hidden="true"><use href="#i-jet"/></svg>CO₂</span></div>
 
 <div class="stats">
@@ -683,7 +694,12 @@ dialog::backdrop {
   <button id="tankBtn">CO2 tank swapped — reset meter</button>
 </div>
 
-<div id="msg" role="status" aria-live="polite">Connecting…</div></main>
+<div id="msg" role="status" aria-live="polite">Connecting…</div>
+<footer class="pro-switch-row">
+  <div><strong>Pro view</strong><p>Explore the volcano and its lighting in 3D.</p></div>
+  <button id="proToggle" role="switch" aria-checked="false" aria-label="Pro view" aria-controls="proPanel"><span id="proToggleLabel">Off</span><span class="pro-switch-track" aria-hidden="true"></span></button>
+</footer>
+</main>
 <dialog id="helpDialog" aria-labelledby="helpTitle"><div class="dialog-head"><h2 id="helpTitle">Your show, step by step</h2><button id="closeHelp" class="icon-btn" aria-label="Close help" autofocus><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div><div class="help-content">
 <p class="help-intro">The console follows the live show. The stage diagram shows fixture positions from above; light beams and effects reflect the output frame.</p>
 <h3>Run the show</h3><ol><li><strong>Check the mode</strong> below the title. Simulation uses a fake DMX driver. Live DMX controls connected fixtures.</li><li><strong>Watch the phase:</strong> dormant → active → imminent → eruption. Request eruption starts the 30-second warning first and respects cooldown.</li><li><strong>Hold dormant</strong> returns an active show to dormant and keeps it there. A warning or eruption finishes first. If timing is paused, resume timing for hold to take effect. Release hold to resume the cycle.</li><li><strong>Pause timing</strong> freezes safe phases. During imminent or eruption, the pause waits until dormant.</li></ol>
@@ -692,6 +708,7 @@ dialog::backdrop {
 <h3>Sounds and simulation</h3><p>Tap an audio filename to preview it on the show speaker. Import adds files to the audio library; assign them in <strong>[audio] in config/show.toml</strong> and restart the app. Simulation speed changes the show clock and is only available with the fake driver.</p>
 <h3>CO₂ tank</h3><p>The meter estimates the remaining supply. Reset it only after physically connecting a fresh tank.</p>
 <h3>Make yourself comfortable</h3><p>Use the moon button to switch between light and dark themes. Your choice is saved on this device. Close this guide with the × button or Escape.</p>
+<h3>Explore in 3D</h3><p>Switch on Pro view at the bottom of the page. Drag or swipe the volcano to orbit; scroll or pinch to zoom. You can also focus the stage and use arrow keys, +/−, and Home. Reset view returns to the starting angle. Fixture colors follow the live output; the shape and light aim are an illustrative preview of the prop. Pro view changes only your display.</p>
 </div></dialog>
 
 <script>
@@ -700,6 +717,8 @@ const canvas = $("stage"), ctx = canvas.getContext("2d");
 const PX_PER_M = 70, CX = 320, CY = 280;
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 let layout = null, state = null, litPars = {};
+let proView = null, proEnabled = false, proLoading = null, outputConnected = false;
+let proNeedsReload = false;
 const chv = (frame, ch) => frame[ch - 1] || 0;
 const px = (p) => [CX + p[0] * PX_PER_M, CY - p[1] * PX_PER_M];
 async function post(url, body) {
@@ -900,6 +919,7 @@ function fmt(s) {
 }
 function sync(s) {
     state = s;
+    outputConnected = true;
     for (const p of ["dormant", "active", "imminent", "eruption"])
         $("ann-" + p).classList.toggle("lit", s.phase === p);
     const band = $("armband");
@@ -958,8 +978,9 @@ function sync(s) {
     for (const button of Object.values(litPars)) {
         button.setAttribute('aria-pressed', String(button.classList.contains('pressed')));
     }
-    if (layout)
+    if (layout && !proEnabled)
         draw(s.frame);
+    proView?.updateFrame(s.frame);
 }
 function updateReady(kind, readyEl, btn, gap) {
     const blocked = gap > 0.05;
@@ -971,6 +992,8 @@ async function tick() {
         sync(await (await fetch("/api/state")).json());
     }
     catch {
+        outputConnected = false;
+        proView?.updateFrame(null, false);
         say("Engine unreachable — retrying", true);
     }
 }
@@ -999,7 +1022,7 @@ function setTheme(theme) {
     const dark = theme === 'dark';
     $('themeBtn').setAttribute('aria-pressed', String(dark));
     $('themeBtn').setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
-    if (state && layout)
+    if (state && layout && !proEnabled)
         draw(state.frame);
 }
 let savedTheme = 'light';
@@ -1018,6 +1041,71 @@ $('themeBtn').onclick = () => {
     catch {
     }
 };
+/* Pro mode is a local display preference; it never posts to the engine. */
+function proError(message) {
+    $('proLoading').hidden = false;
+    $('proStatus').textContent = message;
+    $('proRetry').textContent = proNeedsReload ? 'Reload page' : 'Retry 3D view';
+    $('proRetry').hidden = false;
+}
+async function ensureProView() {
+    if (proView || proLoading || !layout || !proEnabled) return;
+    $('proLoading').hidden = false;
+    $('proRetry').hidden = true;
+    $('proStatus').textContent = 'Loading the volcano…';
+    proLoading = (async () => {
+        let moduleLoaded = false;
+        try {
+            const { createVolcanoView } = await import('/static/pro-view.mjs');
+            moduleLoaded = true;
+            proNeedsReload = false;
+            proView = await createVolcanoView($('proHost'), layout, proError);
+            proView.updateFrame(outputConnected ? state?.frame : null, outputConnected);
+            $('proLoading').hidden = true;
+            proView.setActive(proEnabled);
+        } catch (error) {
+            // Failed module imports (including dependencies) stay cached until reload.
+            proNeedsReload = !moduleLoaded;
+            proError(proNeedsReload
+                ? 'The 3D renderer could not load. Reload this page to try again.'
+                : 'Could not open the 3D stage. Retry, or switch off Pro view to use the top view. A browser with WebGL 2 is required.');
+            console.error('Volcano preview:', error);
+        } finally {
+            proLoading = null;
+        }
+    })();
+    await proLoading;
+}
+function setProMode(enabled, scroll = false) {
+    proEnabled = enabled;
+    $('proToggle').setAttribute('aria-checked', String(enabled));
+    $('proToggleLabel').textContent = enabled ? 'On' : 'Off';
+    $('proPanel').hidden = !enabled;
+    canvas.hidden = enabled;
+    $('stageDescription').hidden = enabled;
+    $('stageViewLabel').textContent = enabled ? 'Pro view' : 'Top view';
+    proView?.setActive(enabled);
+    if (enabled) ensureProView();
+    else if (state && layout) draw(state.frame);
+    try { localStorage.setItem('volcano-pro', String(enabled)); } catch {}
+    if (enabled && scroll) {
+        document.querySelector('.stage-panel').scrollIntoView({ behavior: reducedMotion.matches ? 'instant' : 'smooth', block: 'start' });
+    }
+}
+$('proToggle').onclick = () => setProMode(!proEnabled, true);
+$('proRetry').onclick = () => {
+    if (proNeedsReload) {
+        location.reload();
+        return;
+    }
+    proView?.dispose();
+    proView = null;
+    ensureProView();
+};
+$('proReset').onclick = () => proView?.reset();
+$('proZoomIn').onclick = () => proView?.zoom(1 / 1.15);
+$('proZoomOut').onclick = () => proView?.zoom(1.15);
+try { setProMode(localStorage.getItem('volcano-pro') === 'true'); } catch {}
 $('helpBtn').onclick = () => $('helpDialog').showModal();
 $('closeHelp').onclick = () => $('helpDialog').close();
 $('helpDialog').addEventListener('click', e => {
@@ -1139,6 +1227,7 @@ async function initialize() {
         if (!response.ok)
             throw new Error('Layout unavailable');
         layout = await response.json();
+        if (proEnabled) ensureProView();
         buildTestPanel();
         loadAudio();
         say('Console ready.');

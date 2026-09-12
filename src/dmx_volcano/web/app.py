@@ -1,4 +1,4 @@
-"""Operator control page + 2D visualizer.
+"""Operator control page with top-down and Pro 3D visualizers.
 
 The web thread never touches the wire: it reads a copy of the latest frame
 under the lock and submits *requests* (trigger/arm/hold/pause/test) that the
@@ -14,6 +14,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from ..audio import list_assets, play, resolve_asset, safe_asset_name
@@ -56,6 +57,7 @@ class SpeedRequest(BaseModel):
 
 def create_app(state: ShowState) -> FastAPI:
     app = FastAPI(title="DMX Volcano")
+    app.mount("/static", StaticFiles(directory=INDEX_PATH.parent), name="static")
 
     def refuse(reason: str) -> dict:
         return {"ok": False, "reason": reason}
