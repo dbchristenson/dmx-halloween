@@ -5,167 +5,606 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DMX Volcano — Control</title>
 <style>
-  /* Operator console: dark for night vision, engraved-panel labels, tabular
-     numbers. No webfonts — the page must render with the uplink down. */
-  :root {
-    color-scheme: dark;
-    --bg: #0a0908;
-    --panel: #171310;
-    --panel-2: #1f1914;
-    --line: #2c251c;
-    --ash: #e9e1d3;
-    --dust: #8f8676;
-    --magma: #ff4f1f;
-    --amber: #ffb129;
-    --ice: #9ed9e8;
-    --moss: #7baf6e;
-    --danger: #ff2e2e;
-    --label: 600 .72rem/1 "Avenir Next Condensed", "Arial Narrow", "Helvetica Neue", sans-serif;
-  }
-  * { box-sizing: border-box; margin: 0; }
+:root {
+  color-scheme:light;
+  --bg:#f3f6f8;
+  --panel:#fff;
+  --panel-2:#edf2f6;
+  --line:#d5e0e6;
+  --ash:#203441;
+  --dust:#576c7b;
+  --magma:#c84416;
+  --amber:#956300;
+  --ice:#136c8d;
+  --moss:#24745d;
+  --danger:#bd2839;
+  --stage:#eaf2f5;
+  --rock:#bacbd2;
+  --ridge:#93adb9;
+  --crater:#526f7d;
+  --label:600 .8rem/1.4 "Avenir Next",Avenir,sans-serif
+}
+:root[data-theme=dark] {
+  color-scheme:dark;
+  --bg:#13212b;
+  --panel:#1c2e3a;
+  --panel-2:#263c49;
+  --line:#3a5362;
+  --ash:#eef5f8;
+  --dust:#b1c4ce;
+  --magma:#ff9b70;
+  --amber:#f3cc73;
+  --ice:#7fd4ec;
+  --moss:#85d0b4;
+  --danger:#ff9ca6;
+  --stage:#203845;
+  --rock:#405b68;
+  --ridge:#648491;
+  --crater:#132b36
+}
+* {
+  box-sizing:border-box;
+  margin:0
+}
+body {
+  background:var(--bg);
+  color:var(--ash);
+  font:15px/1.55 "Avenir Next",Avenir,"Segoe UI",sans-serif;
+  max-width:1120px;
+  margin:auto;
+  padding:24px 28px 48px
+}
+button,input,select {
+  font:inherit
+}
+button,a,input,select {
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation
+}
+button {
+  min-height:48px;
+  padding:12px 16px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--panel);
+  color:var(--ash);
+  font-weight:600;
+  cursor:pointer
+}
+button:hover {
+  border-color:var(--ice);
+  background:var(--panel-2)
+}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible {
+  outline:3px solid var(--ice);
+  outline-offset:3px
+}
+button:disabled {
+  opacity:.48;
+  cursor:not-allowed
+}
+button.pressed {
+  background:var(--panel-2);
+  border-color:var(--ice);
+  color:var(--ice)
+}
+.mono {
+  font-variant-numeric:tabular-nums
+}
+.lbl,.sub {
+  font:var(--label);
+  color:var(--dust)
+}
+.mast {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  margin-bottom:22px
+}
+.brand {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex:1
+}
+.brand-mark {
+  width:44px;
+  height:44px;
+  color:var(--magma)
+}
+h1 {
+  font-size:23px;
+  line-height:1.15;
+  letter-spacing:-.7px;
+  font-weight:700
+}
+.mode {
+  display:block;
+  font-size:12px;
+  color:var(--dust);
+  margin-top:5px
+}
+.toolbar {
+  display:flex;
+  gap:8px
+}
+.icon-btn {
+  padding:10px;
+  width:46px;
+  min-height:46px;
+  display:grid;
+  place-items:center
+}
+.icon {
+  width:22px;
+  height:22px;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round
+}
+.annunciator {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:4px;
+  background:var(--panel-2);
+  padding:5px;
+  border-radius:13px
+}
+.ann {
+  color:var(--dust);
+  text-align:center;
+  font-size:13px;
+  padding:9px 2px;
+  border-radius:9px;
+  border:1px solid transparent
+}
+.ann.lit {
+  background:var(--panel);
+  color:var(--ash);
+  border-color:var(--line);
+  font-weight:700
+}
+.ann.lit::before {
+  content:"";
+  display:inline-block;
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:var(--moss);
+  margin-right:6px
+}
+.ann-imminent.lit::before,.ann-eruption.lit::before {
+  background:var(--magma)
+}
+#armband {
+  padding:12px 0 2px;
+  font-size:12px;
+  color:var(--moss);
+  text-align:center
+}
+#armband.armed {
+  color:var(--danger);
+  font-weight:700
+}
+.workspace {
+  display:grid;
+  grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);
+  gap:24px;
+  margin-top:22px
+}
+.stage-panel {
+  align-self:start;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:20px;
+  overflow:hidden
+}
+.stage-heading {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:18px 20px 0
+}
+.stage-heading h2 {
+  font-size:16px
+}
+.stage-heading span {
+  font-size:12px;
+  color:var(--dust)
+}
+#stage {
+  display:block;
+  width:100%;
+  height:auto;
+  background:var(--stage);
+  margin-top:14px
+}
+.legend {
+  display:flex;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:8px 18px;
+  font-size:12px;
+  color:var(--dust);
+  padding:12px
+}
+.legend span {
+  display:flex;
+  align-items:center;
+  gap:5px
+}
+.legend svg {
+  width:18px;
+  height:18px
+}
+.stats {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  border-top:1px solid var(--line);
+  padding:16px 6px
+}
+.stat {
+  text-align:center;
+  min-width:0
+}
+.stat+.stat {
+  border-left:1px solid var(--line)
+}
+.stat .v {
+  font-size:21px;
+  font-weight:650;
+  line-height:1.2
+}
+.stat .l {
+  font-size:11px;
+  color:var(--dust);
+  margin-top:6px
+}
+#co2stat.low .v {
+  color:var(--danger)
+}
+section {
+  margin-bottom:18px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:20px
+}
+section h2 {
+  font-size:17px;
+  margin-bottom:14px;
+  font-weight:650;
+  letter-spacing:-.3px
+}
+.section-note {
+  color:var(--dust);
+  font-size:13px;
+  margin:-6px 0 14px
+}
+.row {
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap
+}
+.row>button {
+  flex:1 1 120px;
+  min-width:0
+}
+#triggerBtn {
+  width:100%;
+  background:#c84416;
+  color:#fff;
+  border-color:#c84416;
+  margin-bottom:12px;
+  padding:16px
+}
+#triggerBtn:hover {
+  background:#ae3610
+}
+#triggerBtn small {
+  display:block;
+  font-size:12px;
+  font-weight:400;
+  margin-top:3px;
+  color:#fff
+}
+#armBtn.armed {
+  color:var(--danger);
+  border-color:var(--danger)
+}
+#testBody {
+  display:none
+}
+#testPanel.on #testBody {
+  display:block
+}
+#testBtn {
+  width:100%
+}
+.sub {
+  margin:16px 0 9px
+}
+.fixgrid {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px
+}
+.fixgrid button {
+  padding:10px 4px;
+  font-size:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px
+}
+.fixgrid .icon {
+  width:18px;
+  height:18px
+}
+.fogrow {
+  display:flex;
+  gap:16px;
+  align-items:center
+}
+.fogrow input {
+  flex:1;
+  min-width:0;
+  min-height:44px;
+  accent-color:var(--ice)
+}
+.pyrorow {
+  display:flex;
+  gap:8px;
+  margin-top:8px;
+  align-items:center
+}
+.pyrorow select {
+  min-height:48px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--panel);
+  color:var(--ash);
+  padding:6px
+}
+.pyrorow button {
+  flex:1
+}
+.ready {
+  font-size:12px;
+  min-width:4ch;
+  color:var(--dust)
+}
+#fireFlame {
+  color:var(--magma)
+}
+#fireCo2 {
+  color:var(--ice)
+}
+#audioPanel {
+  margin-top:24px
+}
+.arow {
+  display:flex;
+  gap:7px;
+  align-items:center;
+  flex-wrap:wrap;
+  padding:12px 0;
+  border-bottom:1px solid var(--line)
+}
+.akey {
+  min-width:180px;
+  font-size:13px;
+  color:var(--dust)
+}
+.chip {
+  font-size:12px;
+  max-width:100%;
+  overflow-wrap:anywhere;
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:8px 10px;
+  background:var(--panel-2)
+}
+.chip.miss {
+  color:var(--danger)
+}
+.chip.unassigned {
+  border-style:dashed
+}
+.anote {
+  color:var(--dust)
+}
+#simBar {
+  display:none;
+  gap:6px;
+  align-items:center;
+  flex-wrap:wrap;
+  margin:18px 0
+}
+#simBar.show {
+  display:flex
+}
+#simBar .lbl {
+  flex:1
+}
+#simBar button {
+  padding:8px 12px;
+  min-height:44px
+}
+#msg {
+  font-size:13px;
+  color:var(--dust);
+  margin-top:18px;
+  padding:12px 0;
+  border-top:1px solid var(--line)
+}
+#msg.err {
+  color:var(--danger)
+}
+dialog {
+  margin:auto;
+  width:min(560px,calc(100% - 24px));
+  max-height:calc(100dvh - 32px);
+  padding:0;
+  border:1px solid var(--line);
+  border-radius:20px;
+  background:var(--panel);
+  color:var(--ash);
+  box-shadow:0 24px 100px #12263340
+}
+dialog::backdrop {
+  background:#10273480
+}
+.dialog-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:18px 22px;
+  border-bottom:1px solid var(--line);
+  position:sticky;
+  top:0;
+  background:var(--panel)
+}
+.dialog-head h2 {
+  font-size:20px
+}
+.help-content {
+  padding:8px 22px 24px
+}
+.help-content h3 {
+  font-size:16px;
+  margin:20px 0 6px
+}
+.help-content p {
+  font-size:14px;
+  color:var(--dust)
+}
+.help-content ol {
+  padding-left:22px;
+  font-size:14px;
+  color:var(--dust)
+}
+.help-content li {
+  padding:5px 0
+}
+.help-content strong {
+  color:var(--ash)
+}
+.help-intro {
+  padding-top:14px
+}
+.help-content a {
+  color:var(--ice)
+}
+@media(max-width:760px) {
   body {
-    background: var(--bg); color: var(--ash);
-    font: 15px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif;
-    max-width: 720px; margin: 0 auto; padding: .9rem .9rem 3rem;
+    padding:16px 14px 32px;
+    max-width:560px
   }
-  .mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; }
-  .lbl { font: var(--label); letter-spacing: .14em; text-transform: uppercase; color: var(--dust); }
-
-  /* ---- masthead + annunciator ---- */
-  header { margin-bottom: .9rem; }
-  .mast { display: flex; align-items: baseline; justify-content: space-between; padding: 0 .15rem .5rem; }
-  .mast h1 { font: var(--label); font-size: .85rem; letter-spacing: .22em; text-transform: uppercase; color: var(--ash); }
-  .mast .mode { font: var(--label); letter-spacing: .14em; text-transform: uppercase; color: var(--dust); }
-  .annunciator { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+  .workspace {
+    grid-template-columns:1fr;
+    gap:18px;
+    margin-top:18px
+  }
+  .mast {
+    margin-bottom:18px
+  }
+  .stage-heading {
+    padding:14px 16px 0
+  }
+  #stage {
+    max-height:none
+  }
+  .controls section:last-child {
+    margin-bottom:0
+  }
+  section {
+    padding:16px
+  }
+  .stats {
+    padding:14px 4px
+  }
+  .brand-mark {
+    width:36px;
+    height:36px
+  }
+  h1 {
+    font-size:21px
+  }
+  #audioPanel {
+    margin-top:18px
+  }
+  .akey {
+    width:100%
+  }
   .ann {
-    padding: .55rem .25rem .5rem; text-align: center; background: var(--panel);
-    border: 1px solid var(--line); border-radius: 4px;
-    font: var(--label); letter-spacing: .1em; text-transform: uppercase;
-    color: #574c40; position: relative; white-space: nowrap; overflow: hidden;
+    font-size:12px
   }
-  .ann::before {
-    content: ""; position: absolute; top: 5px; left: 50%; transform: translateX(-50%);
-    width: 5px; height: 5px; border-radius: 50%; background: #33291f;
+  .legend {
+    font-size:11px
   }
-  .ann.lit { color: var(--ash); border-color: var(--on, var(--dust)); box-shadow: inset 0 0 18px -6px var(--on, transparent); }
-  .ann.lit::before { background: var(--on); box-shadow: 0 0 6px var(--on); }
-  .ann-dormant  { --on: #b0693c; }
-  .ann-active   { --on: #ff8c1a; }
-  .ann-imminent { --on: var(--danger); }
-  .ann-eruption { --on: #ffd23f; }
-  .ann-imminent.lit { animation: blink .7s step-end infinite; }
-  @keyframes blink { 50% { color: #574c40; box-shadow: none; } }
-
-  /* Hazard band: exists only while pyro is armed. */
-  #armband {
-    margin-top: 6px; border-radius: 4px; overflow: hidden;
-    display: flex; align-items: center; justify-content: center; gap: .6rem;
-    padding: .42rem 0; border: 1px solid var(--line);
-    font: var(--label); letter-spacing: .18em; text-transform: uppercase; color: var(--dust); text-align: center;
-    background: var(--panel);
+  .row>button {
+    flex-basis:110px
   }
-  #armband.armed {
-    border-color: var(--amber);
-    background: repeating-linear-gradient(-45deg, var(--amber) 0 14px, #1a1102 14px 28px);
-    color: var(--amber); animation: crawl 1.2s linear infinite;
+  .stat .v {
+    font-size:20px
   }
-  @keyframes crawl { to { background-position: 40px 0; } }
-  #armband.armed span { background: #140d02; padding: .1rem .6rem; border-radius: 2px; }
-
-  /* ---- stage ---- */
-  #stage { display: block; width: 100%; background: #100d0b; border: 1px solid var(--line); border-radius: 8px; margin: .9rem 0; }
-
-  /* ---- stats ---- */
-  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
-  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: .5rem .25rem .45rem; text-align: center; min-width: 0; overflow: hidden; }
-  .stat .v { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-variant-numeric: tabular-nums; font-size: 1.15rem; font-weight: 600; }
-  .stat .l { font: var(--label); letter-spacing: .12em; text-transform: uppercase; color: var(--dust); margin-top: .2rem; }
-  #co2stat.low .v { color: var(--danger); }
-
-  /* ---- panels ---- */
-  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .9rem; margin-top: .9rem; }
-  section > h2 { font: var(--label); font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--dust);
-    border-bottom: 1px solid var(--line); padding-bottom: .55rem; margin-bottom: .8rem; }
-
-  button {
-    font: inherit; font-weight: 650; color: var(--ash);
-    background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
-    padding: .7rem 1rem; cursor: pointer; min-height: 48px;   /* gloved-thumb targets */
+}
+@media(max-width:360px) {
+  body {
+    padding:12px 10px
   }
-  button:hover { border-color: var(--dust); }
-  button:focus-visible { outline: 2px solid var(--ice); outline-offset: 2px; }
-  button:disabled { opacity: .4; cursor: not-allowed; }
-  button.pressed { border-color: var(--amber); color: var(--amber); background: #221805; }
-
-  .row { display: flex; gap: .6rem; flex-wrap: wrap; }
-  .row > button { flex: 1 1 9rem; min-width: 0; }
-  #triggerBtn {
-    width: 100%; margin-bottom: .6rem; padding: .95rem;
-    background: linear-gradient(#3a1206, #2a0d04); border-color: #6b2410; color: #ffc9b3;
-    font-size: 1.02rem;
+  .mast {
+    gap:6px
   }
-  #triggerBtn:hover { border-color: var(--magma); }
-  #triggerBtn small { display: block; font-weight: 400; font-size: .72rem; color: #c98668; margin-top: .15rem; }
-  #armBtn.armed { border-color: var(--amber); color: var(--amber); background: #221805; }
-
-  /* ---- test panel ---- */
-  #testBody { display: none; }
-  #testPanel.on #testBody { display: block; }
-  .fixgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; margin-bottom: .9rem; }
-  .fixgrid button { min-height: 44px; padding: .5rem .25rem; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .85rem; }
-  .fixgrid button.pressed { border-color: #ff8c1a; color: #ffb87a; background: #241305; }
-  .sub { font: var(--label); letter-spacing: .14em; text-transform: uppercase; color: var(--dust); margin: .9rem 0 .5rem; }
-  .fogrow { display: flex; align-items: center; gap: .8rem; }
-  .fogrow input[type=range] { flex: 1; accent-color: var(--dust); min-height: 44px; }
-  .fogrow .mono { min-width: 3ch; text-align: right; }
-
-  .pyrorow { display: flex; gap: .6rem; align-items: stretch; margin-top: .5rem; }
-  .pyrorow select {
-    font: inherit; background: var(--panel-2); color: var(--ash);
-    border: 1px solid var(--line); border-radius: 6px; padding: 0 .5rem; min-height: 48px;
+  .brand {
+    gap:7px
   }
-  .pyrorow button { flex: 1; }
-  #fireFlame { border-color: #6b2410; color: #ffc9b3; background: #240c04; }
-  #fireCo2 { border-color: #1e4652; color: var(--ice); background: #0a1a1f; }
-  .ready { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .78rem; color: var(--dust); align-self: center; min-width: 5.5ch; text-align: center; }
-
-  /* ---- audio panel ---- */
-  .arow { display: flex; gap: .5rem; align-items: baseline; padding: .26rem 0; flex-wrap: wrap; }
-  .akey { font: var(--label); letter-spacing: .12em; text-transform: uppercase; color: var(--dust); min-width: 10rem; }
-  .chip {
-    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .78rem;
-    background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px;
-    padding: .15rem .45rem;
+  .toolbar {
+    gap:5px
   }
-  .chip.miss { color: var(--amber); border-color: #4d3a10; }
-  .chip.unassigned { color: var(--dust); border-style: dashed; }
-  .anote { font-size: .78rem; color: #574c40; }
-
-  /* ---- console line + sim ---- */
-  #msg {
-    margin-top: .9rem; padding: .55rem .8rem; border-radius: 6px; min-height: 2.2rem;
-    background: var(--panel); border: 1px solid var(--line);
-    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: .8rem; color: var(--dust);
+  .icon-btn {
+    width:44px
   }
-  #msg.err { color: var(--amber); border-color: #4d3a10; }
-  #simBar { display: none; align-items: center; gap: .5rem; margin-top: .9rem; flex-wrap: wrap; }
-  #simBar.show { display: flex; }
-  #simBar button { min-height: 40px; padding: .35rem .7rem; flex: 1; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
-
-  @media (max-width: 480px) {
-    .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .fixgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .brand-mark {
+    width:30px
   }
-  @media (prefers-reduced-motion: reduce) {
-    .ann-imminent.lit, #armband.armed { animation: none; }
+  h1 {
+    font-size:19px
   }
+  .fixgrid {
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+  .ann.lit::before {
+    margin-right:3px
+  }
+  .ann {
+    font-size:11px
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  * {
+    scroll-behavior:auto!important
+  }
+}
 </style>
 </head>
-<body>
+<body><svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs>
+<symbol id="i-volcano" viewBox="0 0 48 48"><path d="M5 40 18 17l6 3 6-3 13 23Z" fill="currentColor" opacity=".16"/><path d="m5 40 13-23 6 3 6-3 13 23H5Z M16 21l3 9 5-4 5 6 3-10 M20 11l-3-5m7 5V3m4 8 4-5" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+<symbol id="i-light" viewBox="0 0 24 24"><path d="M5 8v6a7 7 0 0 0 14 0V8M12 21v-3M8 22h8"/><circle cx="12" cy="9" r="5"/><path d="m9 9 2 2 4-4"/></symbol>
+<symbol id="i-fog" viewBox="0 0 24 24"><path d="M3 14h12v6H3zM6 17h3M16 16h3a3 3 0 0 0 0-6h-6a3 3 0 0 1 0-6h4M16 7h5"/></symbol>
+<symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 2c1 6-5 6-5 11 0 2 1 3 2 4-1-4 3-5 3-7 5 4 7 6 5 10 5-3 5-8 1-12 0 3-2 3-2 3 1-4-1-7-4-9Z"/></symbol>
+<symbol id="i-jet" viewBox="0 0 24 24"><path d="M8 16h8v6H8zM10 16 7 4m5 9V2m2 14 3-12M4 9l2 2m14-2-2 2"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10Z"/></symbol>
+<symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 5 2c-1 1-2 1-2 3m0 3h.01"/></symbol>
+<symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+</defs></svg>
 <header>
   <div class="mast">
-    <h1>DMX Volcano</h1>
-    <span class="mode" id="modeTag">—</span>
+    <div class="brand"><svg class="brand-mark" aria-hidden="true"><use href="#i-volcano"/></svg><div><h1>Volcano</h1><span class="mode" id="modeTag">Connecting to show…</span></div></div>
+    <div class="toolbar"><button class="icon-btn" id="themeBtn" aria-label="Switch to dark mode" aria-pressed="false" title="Switch color theme"><svg class="icon" aria-hidden="true"><use href="#i-moon"/></svg></button><button class="icon-btn" id="helpBtn" aria-label="How to use the console" title="How to use the console"><svg class="icon" aria-hidden="true"><use href="#i-help"/></svg></button></div>
   </div>
   <div class="annunciator" role="status" aria-label="show phase">
     <div class="ann ann-dormant"  id="ann-dormant">Dormant</div>
@@ -173,10 +612,12 @@
     <div class="ann ann-imminent" id="ann-imminent">Imminent</div>
     <div class="ann ann-eruption" id="ann-eruption">Eruption</div>
   </div>
-  <div id="armband" role="status"><span>Pyro safe — disarmed</span></div>
+  <div id="armband" role="status"><span>Pyro disarmed</span></div>
 </header>
 
-<canvas id="stage" width="640" height="640"></canvas>
+<main><div class="workspace"><div class="stage-panel"><div class="stage-heading"><h2>Live stage</h2><span>Top view</span></div>
+<canvas id="stage" width="640" height="560" role="img" aria-label="Top view of volcano and live fixture output" aria-describedby="stageDescription"></canvas>
+<div class="legend" id="stageDescription"><span><svg class="icon" aria-hidden="true"><use href="#i-light"/></svg>Lights</span><span><svg class="icon" aria-hidden="true"><use href="#i-fog"/></svg>Fog</span><span><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg>Flame</span><span><svg class="icon" aria-hidden="true"><use href="#i-jet"/></svg>CO₂</span></div>
 
 <div class="stats">
   <div class="stat"><div class="v mono" id="tip">0s</div><div class="l">In phase</div></div>
@@ -185,8 +626,8 @@
   <div class="stat" id="co2stat"><div class="v mono" id="co2">—</div><div class="l">CO2 left</div></div>
 </div>
 
-<section>
-  <h2>Show</h2>
+</div><div class="controls"><section>
+  <h2>Show controls</h2>
   <button id="triggerBtn">Request eruption<small id="triggerSub">runs the 30s warning first — always</small></button>
   <div class="row">
     <button id="holdBtn">Hold dormant</button>
@@ -196,7 +637,7 @@
 </section>
 
 <section id="testPanel">
-  <h2>Fixture test</h2>
+  <h2>Fixture test</h2><p class="section-note">Check individual lights and effects while dormant.</p>
   <button id="testBtn">Enter test mode</button>
   <div id="testBody">
     <div class="sub">Lights — tap to toggle</div>
@@ -220,10 +661,10 @@
   </div>
 </section>
 
-<section id="audioPanel" style="display:none">
+</div></div><section id="audioPanel" style="display:none">
   <h2>Audio</h2>
   <div id="audioPools"></div>
-  <div class="sub">Import — copies into assets/; assign pools in show.toml, then restart</div>
+  <div class="sub">Add sounds to your show. See help for assigning imported files.</div>
   <div class="row">
     <button id="importBtn">Import audio file…</button>
   </div>
@@ -242,316 +683,474 @@
   <button id="tankBtn">CO2 tank swapped — reset meter</button>
 </div>
 
-<div id="msg" role="log">Connecting…</div>
+<div id="msg" role="status" aria-live="polite">Connecting…</div></main>
+<dialog id="helpDialog" aria-labelledby="helpTitle"><div class="dialog-head"><h2 id="helpTitle">Your show, step by step</h2><button id="closeHelp" class="icon-btn" aria-label="Close help" autofocus><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div><div class="help-content">
+<p class="help-intro">The console follows the live show. The stage diagram shows fixture positions from above; light beams and effects reflect the output frame.</p>
+<h3>Run the show</h3><ol><li><strong>Check the mode</strong> below the title. Simulation uses a fake DMX driver. Live DMX controls connected fixtures.</li><li><strong>Watch the phase:</strong> dormant → active → imminent → eruption. Request eruption starts the 30-second warning first and respects cooldown.</li><li><strong>Hold dormant</strong> returns an active show to dormant and keeps it there. A warning or eruption finishes first. If timing is paused, resume timing for hold to take effect. Release hold to resume the cycle.</li><li><strong>Pause timing</strong> freezes safe phases. During imminent or eruption, the pause waits until dormant.</li></ol>
+<h3>Test lights and effects</h3><p>Wait for dormant, then enter test mode. It holds the show while you toggle lights, set fog output, or request a timed burst. Exit test mode clears overrides; release hold separately to resume.</p>
+<h3>Understand pyro status</h3><p>Flame and CO₂ require software arming and the physical arm switch. Rehearsal configuration prevents software arming. Burst duration limits and gaps still apply. Disarm pyro turns off software arming.</p>
+<h3>Sounds and simulation</h3><p>Tap an audio filename to preview it on the show speaker. Import adds files to the audio library; assign them in <strong>[audio] in config/show.toml</strong> and restart the app. Simulation speed changes the show clock and is only available with the fake driver.</p>
+<h3>CO₂ tank</h3><p>The meter estimates the remaining supply. Reset it only after physically connecting a fresh tank.</p>
+<h3>Make yourself comfortable</h3><p>Use the moon button to switch between light and dark themes. Your choice is saved on this device. Close this guide with the × button or Escape.</p>
+</div></dialog>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const canvas = $("stage"), ctx = canvas.getContext("2d");
-const PX_PER_M = 70, CX = 320, CY = 320;
+const PX_PER_M = 70, CX = 320, CY = 280;
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 let layout = null, state = null, litPars = {};
-
 const chv = (frame, ch) => frame[ch - 1] || 0;
 const px = (p) => [CX + p[0] * PX_PER_M, CY - p[1] * PX_PER_M];
-
 async function post(url, body) {
-  try {
-    const r = await fetch(url, {
-      method: "POST",
-      headers: body ? { "content-type": "application/json" } : {},
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const data = await r.json();
-    if (data.ok === false) say(data.reason, true);
-    else say(okText(url, body));
-    return data;
-  } catch { say("Engine unreachable — retrying", true); return { ok: false }; }
+    try {
+        const r = await fetch(url, {
+            method: "POST",
+            headers: body ? { "content-type": "application/json" } : {},
+            body: body ? JSON.stringify(body) : undefined,
+        });
+        const data = await r.json();
+        if (data.ok === false)
+            say(data.reason, true);
+        else
+            say(okText(url, body));
+        return data;
+    }
+    catch {
+        say("Engine unreachable — retrying", true);
+        return { ok: false };
+    }
 }
-
 function okText(url, body) {
-  const t = new Date().toLocaleTimeString();
-  const name = url.replace("/api/", "").replace("/", " ");
-  return `${t} — ${name}${body ? " " + JSON.stringify(body) : ""} ✓`;
+    if (url.startsWith('/api/audio/preview'))
+        return 'Playing audio on the show speaker.';
+    const messages = {
+        '/api/trigger': 'Eruption requested. The warning runs first.',
+        '/api/hold': body?.on ? 'Hold enabled.' : 'Hold released.',
+        '/api/pause': body?.on ? 'Pause requested.' : 'Timing resumed.',
+        '/api/arm': 'Pyro armed.',
+        '/api/disarm': 'Pyro disarmed.',
+        '/api/test/enable': body?.on ? 'Test mode enabled. The show is held dormant.' : 'Test mode ended. Release hold to resume the show.',
+        '/api/test/light': `${body?.name?.toUpperCase()} ${body?.on ? 'on' : 'off'}.`,
+        '/api/test/fog': `Fog set to ${body?.level}.`,
+        '/api/test/burst': 'Burst requested. Awaiting the safety gate.',
+        '/api/sim/speed': `Simulation speed set to ${body?.speed}×.`,
+        '/api/tank/reset': 'CO₂ meter reset for the fresh tank.',
+    };
+    return messages[url] || 'Updated.';
 }
-function say(text, err = false) { const m = $("msg"); m.textContent = text; m.className = err ? "err" : ""; }
-
+function say(text, err = false) {
+    const m = $("msg");
+    m.textContent = text;
+    m.className = err ? "err" : "";
+}
 /* ---- visualizer (same wire-truth drawing, restyled) ---- */
-function drawVolcano() {
-  const g = ctx.createRadialGradient(CX, CY, 20, CX, CY, 120);
-  g.addColorStop(0, "#2a1c14"); g.addColorStop(1, "#151009");
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(CX, CY, 120, 0, 7); ctx.fill();
-  ctx.strokeStyle = "#3d2b1c"; ctx.lineWidth = 3; ctx.stroke();
-  ctx.beginPath(); ctx.arc(CX, CY, 42, 0, 7);
-  ctx.fillStyle = "#0e0a08"; ctx.fill(); ctx.strokeStyle = "#4a2a20"; ctx.stroke();
+function palette(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+function path(d, fill, stroke, width = 2) {
+    const shape = new Path2D(d);
+    if (fill) {
+        ctx.fillStyle = fill;
+        ctx.fill(shape);
+    }
+    if (stroke) {
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = width;
+        ctx.stroke(shape);
+    }
+}
+function label(text, x, y) {
+    ctx.fillStyle = palette('--dust');
+    ctx.font = `600 ${Math.max(12, 9 * 640 / canvas.clientWidth)}px "Avenir Next", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(text, x, y);
+}
+function drawTerrain() {
+    ctx.save();
+    ctx.translate(CX, CY);
+    path('M-126 30 -108-48 -64-100 8-119 82-86 123-21 108 59 45 107 -37 116 -100 79Z', palette('--rock'), palette('--ridge'));
+    path('M-108-48 -35-23 -64-100 M8-119 13-44 82-86 M123-21 45-5 108 59 M45 107 16 39 -37 116 M-100 79 -36 26 -126 30', null, palette('--ridge'), 3);
+    path('M-79 26 -66-37 -19-74 45-58 80-8 60 51 -3 77 -57 57Z', null, palette('--ridge'), 1.5);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 47, 40, -.2, 0, Math.PI * 2);
+    ctx.fillStyle = palette('--crater');
+    ctx.fill();
+    ctx.strokeStyle = palette('--ridge');
+    ctx.lineWidth = 6;
+    ctx.stroke();
+    path('M-24 4 -8-15 4-7 15-21 30 4 16 22 -8 26Z', palette('--rock'), null);
+    ctx.restore();
 }
 function drawPar(f, frame) {
-  const [x, y] = px(f.position);
-  const dim = chv(frame, f.channels.dimmer) / 255;
-  const r = chv(frame, f.channels.red), g = chv(frame, f.channels.green), b = chv(frame, f.channels.blue);
-  if (dim > 0.01) {
-    const glow = ctx.createRadialGradient(x, y, 2, x, y, 44);
-    glow.addColorStop(0, `rgba(${r},${g},${b},${0.85 * dim})`);
-    glow.addColorStop(1, `rgba(${r},${g},${b},0)`);
-    ctx.fillStyle = glow;
-    ctx.beginPath(); ctx.arc(x, y, 44, 0, 7); ctx.fill();
-  }
-  ctx.fillStyle = "#2b2b33"; ctx.strokeStyle = "#55545e";
-  ctx.beginPath(); ctx.arc(x, y, 7, 0, 7); ctx.fill(); ctx.stroke();
-  ctx.font = "600 9px ui-monospace, Menlo, monospace"; ctx.textAlign = "center";
-  ctx.fillStyle = "#6b6355"; ctx.fillText(f.name.replace("par", "P"), x, y + 18);
+    const [x, y] = px(f.position), dim = chv(frame, f.channels.dimmer) / 255;
+    const rgb = ['red', 'green', 'blue'].map(k => chv(frame, f.channels[k]));
+    const on = dim > .01 && rgb.some(v => v > 0), color = `rgb(${rgb.join(',')})`;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.atan2(CY - y, CX - x) + Math.PI / 2);
+    if (on) {
+        const beam = ctx.createLinearGradient(0, -12, 0, -110);
+        beam.addColorStop(0, `rgba(${rgb.join(',')},${dim * .65})`);
+        beam.addColorStop(1, `rgba(${rgb.join(',')},0)`);
+        path('M-9-10 -39-110 39-110 9-10Z', beam, null);
+    }
+    path('M-15-4v12q0 9 15 9t15-9V-4 M0 17v7 M-9 24h18', null, palette('--dust'), 3);
+    ctx.beginPath();
+    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+    ctx.fillStyle = palette('--panel');
+    ctx.fill();
+    ctx.strokeStyle = palette('--dust');
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    for (const [a, b] of [[0, 0], [-5, -4], [5, -4], [-5, 4], [5, 4]]) {
+        ctx.beginPath();
+        ctx.arc(a, b, 2.3, 0, 7);
+        ctx.fillStyle = on ? color : palette('--ridge');
+        ctx.globalAlpha = on ? Math.max(.25, dim) : 1;
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    label(f.name.replace('par', 'P'), x, y + 39);
+}
+function device(f, kind, on) {
+    const [x, y] = px(f.position);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = palette('--panel');
+    ctx.strokeStyle = on ? palette('--magma') : palette('--ridge');
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(-17, -15, 34, 30, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.scale(.85, .85);
+    ctx.translate(-12, -12);
+    const symbol = document.querySelector('#i-' + kind);
+    for (const p of symbol.querySelectorAll('path'))
+        path(p.getAttribute('d'), null, palette(kind === 'jet' ? '--ice' : '--dust'), 1.8);
+    ctx.restore();
+    return [x, y];
 }
 function drawFogger(f, frame) {
-  const [x, y] = px(f.position);
-  const fog = chv(frame, f.channels.fog) / 255;
-  if (fog > 0.02) for (let i = 0; i < 3; i++) {
-    const t = Date.now() / 900 + i * 2.1;
-    const dx = Math.sin(t) * 14 * (i + 1), dy = -12 * i - 8 * Math.abs(Math.cos(t));
-    const c = ctx.createRadialGradient(x + dx, y + dy, 2, x + dx, y + dy, 26 + 10 * i);
-    c.addColorStop(0, `rgba(190,190,200,${0.3 * fog})`); c.addColorStop(1, "rgba(190,190,200,0)");
-    ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x + dx, y + dy, 26 + 10 * i, 0, 7); ctx.fill();
-  }
-  ctx.font = "16px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🌫", x, y + 6);
+    const fog = chv(frame, f.channels.fog) / 255, [x, y] = px(f.position);
+    if (fog > .02) {
+        for (let i = 0; i < 4; i++) {
+            const drift = reducedMotion.matches ? 0 : Math.sin(Date.now() / 1000 + i) * 8;
+            ctx.beginPath();
+            ctx.ellipse(x - 55 + i * 34 + drift, y - 12 - i * 7, 38, 14, 0, 0, 7);
+            ctx.fillStyle = palette('--ridge');
+            ctx.globalAlpha = fog * .22;
+            ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
+    device(f, 'fog', fog > .02);
 }
 function drawCo2(f, frame) {
-  const [x, y] = px(f.position);
-  const jet = chv(frame, f.channels.jet) / 255;
-  if (jet > 0.02) {
-    ctx.save(); ctx.globalAlpha = 0.85 * jet;
-    const beam = ctx.createLinearGradient(x, y, x, y - 130);
-    beam.addColorStop(0, "rgba(235,245,255,.95)"); beam.addColorStop(1, "rgba(235,245,255,0)");
-    ctx.fillStyle = beam;
-    ctx.beginPath();
-    ctx.moveTo(x - 6, y); ctx.lineTo(x - 22, y - 130); ctx.lineTo(x + 22, y - 130); ctx.lineTo(x + 6, y);
-    ctx.closePath(); ctx.fill(); ctx.restore();
-  }
-  ctx.font = "16px sans-serif"; ctx.textAlign = "center"; ctx.fillText("❄️", x, y + 6);
+    const jet = chv(frame, f.channels.jet) / 255, [x, y] = px(f.position);
+    if (jet > .02) {
+        const beam = ctx.createLinearGradient(x, y, x, y - 110);
+        beam.addColorStop(0, '#4caac9dd');
+        beam.addColorStop(1, '#bcecf300');
+        ctx.globalAlpha = jet;
+        path(`M${x - 5} ${y}l-20-110h50l-20 110Z`, beam, null);
+        ctx.globalAlpha = 1;
+    }
+    device(f, 'jet', jet > .02);
 }
 function drawFlame(f, frame) {
-  const [x, y] = px(f.position);
-  const fire = chv(frame, f.channels.fire) / 255;
-  const safety = chv(frame, f.channels.safety);
-  const safeOpen = safety >= 102 && safety <= 153;
-  if (fire > 0.02 && safeOpen) {
-    const h = 100 + 40 * Math.random();
-    ctx.save(); ctx.globalAlpha = 0.9 * fire;
-    const fl = ctx.createLinearGradient(x, y, x, y - h);
-    fl.addColorStop(0, "#ffdf60"); fl.addColorStop(.5, "#ff7b2d"); fl.addColorStop(1, "rgba(220,40,10,0)");
-    ctx.fillStyle = fl;
-    ctx.beginPath();
-    ctx.moveTo(x - 12, y);
-    ctx.quadraticCurveTo(x - 18, y - h * .5, x, y - h);
-    ctx.quadraticCurveTo(x + 18, y - h * .5, x + 12, y);
-    ctx.closePath(); ctx.fill(); ctx.restore();
-  }
-  ctx.font = "16px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🔥", x, y + 6);
-  ctx.fillStyle = safeOpen ? "#ffd23f" : "#3a3f4a";
-  ctx.beginPath(); ctx.arc(x + 14, y - 10, 3.5, 0, 7); ctx.fill();
+    const fire = chv(frame, f.channels.fire) / 255, safety = chv(frame, f.channels.safety), on = fire > .02 && safety >= 102 && safety <= 153, [x, y] = px(f.position);
+    if (on) {
+        const h = reducedMotion.matches ? 96 : 96 + Math.sin(Date.now() / 90) * 9;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.globalAlpha = fire;
+        path(`M-12 0Q-30-40 0 ${-h}Q4-52 15-60Q38-20 12 0Z`, '#f47834', null);
+        path('M-6 0Q-15-22 3-48Q1-25 10-16Q14-5 6 0Z', '#ffdf8a', null);
+        ctx.restore();
+    }
+    device(f, 'flame', on);
 }
 function draw(frame) {
-  ctx.clearRect(0, 0, 640, 640);
-  drawVolcano();
-  for (const f of layout.fixtures) {
-    if (f.name.startsWith("par")) drawPar(f, frame);
-    else if (f.name === "fogger") drawFogger(f, frame);
-    else if (f.name === "co2") drawCo2(f, frame);
-    else if (f.name === "flame") drawFlame(f, frame);
-  }
-}
-
-/* ---- state sync ---- */
-function fmt(s) { return s >= 90 ? `${Math.floor(s / 60)}m${String(Math.round(s % 60)).padStart(2, "0")}` : `${s.toFixed(0)}s`; }
-
-function sync(s) {
-  state = s;
-  for (const p of ["dormant", "active", "imminent", "eruption"])
-    $("ann-" + p).classList.toggle("lit", s.phase === p);
-
-  const band = $("armband");
-  band.classList.toggle("armed", s.armed);
-  band.innerHTML = s.armed
-    ? "<span>⚠ Pyro armed — flame &amp; CO2 live ⚠</span>"
-    : `<span>Pyro safe — disarmed${s.rehearsal ? " · rehearsal (locked by config)" : ""}</span>`;
-
-  $("modeTag").textContent =
-    (s.sim ? `sim ${s.sim.speed}×` : "live DMX") +
-    (s.hold ? " · held" : "") +
-    (s.paused ? " · paused" : s.pause_pending ? " · pause queued" : "");
-
-  $("tip").textContent = fmt(s.time_in_phase);
-  $("dwell").textContent = s.sampled_dwell ? fmt(s.sampled_dwell) : "—";
-  $("count").textContent = s.eruption_count;
-  if (s.co2) {
-    $("co2").textContent = (s.co2.remaining_fraction * 100).toFixed(0) + "%";
-    $("co2stat").classList.toggle("low", s.co2.alerted);
-  }
-
-  $("holdBtn").classList.toggle("pressed", s.hold);
-  $("holdBtn").textContent = s.hold ? "Release hold" : "Hold dormant";
-  $("pauseBtn").classList.toggle("pressed", s.paused || s.pause_pending);
-  $("pauseBtn").textContent = s.paused ? "Resume timing" : s.pause_pending ? "Pause queued…" : "Pause timing";
-  const armBtn = $("armBtn");
-  armBtn.textContent = s.armed ? "Disarm pyro" : "Arm pyro";
-  armBtn.classList.toggle("armed", s.armed);
-  $("triggerBtn").disabled = s.hold || s.cooldown_remaining > 0;
-  $("triggerSub").textContent =
-    s.hold ? "blocked — show is held in dormant"
-    : s.cooldown_remaining > 0 ? `cooling down — ready in ${Math.ceil(s.cooldown_remaining)}s`
-    : "runs the 30s warning first — always";
-
-  const test = s.test || { enabled: false };
-  $("testPanel").classList.toggle("on", test.enabled);
-  $("testBtn").textContent = test.enabled ? "Exit test mode" : "Enter test mode";
-  $("testBtn").classList.toggle("pressed", test.enabled);
-  if (test.enabled) {
-    for (const f of layout ? layout.fixtures : []) {
-      if (litPars[f.name]) litPars[f.name].classList.toggle("pressed", parOn(f, test.overrides));
-      if (f.name === "fogger" && document.activeElement !== $("fogRange")) {
-        const level = test.overrides[String(f.channels.fog)] || 0;
-        $("fogRange").value = level; $("fogVal").textContent = level;
-      }
+    ctx.clearRect(0, 0, 640, 560);
+    ctx.strokeStyle = palette('--line');
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 7]);
+    ctx.beginPath();
+    ctx.arc(CX, CY, 210, 0, 7);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    drawTerrain();
+    for (const f of layout.fixtures) {
+        if (f.name.startsWith('par'))
+            drawPar(f, frame);
+        else if (f.name === 'fogger')
+            drawFogger(f, frame);
+        else if (f.name === 'co2')
+            drawCo2(f, frame);
+        else if (f.name === 'flame')
+            drawFlame(f, frame);
     }
-    updateReady("flame", $("flameReady"), $("fireFlame"), test.ready_in.flame);
-    updateReady("co2", $("co2Ready"), $("fireCo2"), test.ready_in.co2);
-  }
-  if (s.sim) {
-    $("simBar").classList.add("show");
-    for (const b of document.querySelectorAll("#simBar button"))
-      b.classList.toggle("pressed", Number(b.dataset.speed) === s.sim.speed);
-  }
-  if (layout) draw(s.frame);
 }
-
+/* ---- state sync ---- */
+function fmt(s) {
+    return s >= 90 ? `${Math.floor(s / 60)}m${String(Math.round(s % 60)).padStart(2, "0")}` : `${s.toFixed(0)}s`;
+}
+function sync(s) {
+    state = s;
+    for (const p of ["dormant", "active", "imminent", "eruption"])
+        $("ann-" + p).classList.toggle("lit", s.phase === p);
+    const band = $("armband");
+    band.classList.toggle("armed", s.armed);
+    band.innerHTML = s.armed
+        ? "<span>⚠ Pyro armed — flame &amp; CO2 live ⚠</span>"
+        : `<span>Pyro disarmed${s.rehearsal ? " · rehearsal lock" : ""}</span>`;
+    $("modeTag").textContent =
+        (s.sim ? `sim ${s.sim.speed}×` : "live DMX") +
+            (s.hold ? " · held" : "") +
+            (s.paused ? " · paused" : s.pause_pending ? " · pause queued" : "");
+    $("tip").textContent = fmt(s.time_in_phase);
+    $("dwell").textContent = s.sampled_dwell ? fmt(s.sampled_dwell) : "—";
+    $("count").textContent = s.eruption_count;
+    if (s.co2) {
+        $("co2").textContent = (s.co2.remaining_fraction * 100).toFixed(0) + "%";
+        $("co2stat").classList.toggle("low", s.co2.alerted);
+    }
+    $("holdBtn").classList.toggle("pressed", s.hold);
+    $("holdBtn").textContent = s.hold ? "Release hold" : "Hold dormant";
+    $("pauseBtn").classList.toggle("pressed", s.paused || s.pause_pending);
+    $("pauseBtn").textContent = s.paused ? "Resume timing" : s.pause_pending ? "Pause queued…" : "Pause timing";
+    const armBtn = $("armBtn");
+    armBtn.textContent = s.armed ? "Disarm pyro" : "Arm pyro";
+    armBtn.classList.toggle("armed", s.armed);
+    $("triggerBtn").disabled = s.hold || s.cooldown_remaining > 0;
+    $("triggerSub").textContent =
+        s.hold ? "blocked — show is held in dormant"
+            : s.cooldown_remaining > 0 ? `cooling down — ready in ${Math.ceil(s.cooldown_remaining)}s`
+                : "runs the 30s warning first — always";
+    const test = s.test || { enabled: false };
+    $("testPanel").classList.toggle("on", test.enabled);
+    $("testBtn").textContent = test.enabled ? "Exit test mode" : "Enter test mode";
+    $("testBtn").classList.toggle("pressed", test.enabled);
+    if (test.enabled) {
+        for (const f of layout ? layout.fixtures : []) {
+            if (litPars[f.name])
+                litPars[f.name].classList.toggle("pressed", parOn(f, test.overrides));
+            if (f.name === "fogger" && document.activeElement !== $("fogRange")) {
+                const level = test.overrides[String(f.channels.fog)] || 0;
+                $("fogRange").value = level;
+                $("fogVal").textContent = level;
+            }
+        }
+        updateReady("flame", $("flameReady"), $("fireFlame"), test.ready_in.flame);
+        updateReady("co2", $("co2Ready"), $("fireCo2"), test.ready_in.co2);
+    }
+    if (s.sim) {
+        $("simBar").classList.add("show");
+        for (const b of document.querySelectorAll("#simBar button"))
+            b.classList.toggle("pressed", Number(b.dataset.speed) === s.sim.speed);
+    }
+    for (const id of ['holdBtn', 'pauseBtn', 'testBtn']) {
+        $(id).setAttribute('aria-pressed', String($(id).classList.contains('pressed')));
+    }
+    for (const button of Object.values(litPars)) {
+        button.setAttribute('aria-pressed', String(button.classList.contains('pressed')));
+    }
+    if (layout)
+        draw(s.frame);
+}
 function updateReady(kind, readyEl, btn, gap) {
-  const blocked = gap > 0.05;
-  btn.disabled = blocked || !state.armed;
-  readyEl.textContent = blocked ? `${gap.toFixed(1)}s` : state.armed ? "ready" : "safe";
+    const blocked = gap > 0.05;
+    btn.disabled = blocked || !state.armed;
+    readyEl.textContent = blocked ? `${gap.toFixed(1)}s` : state.armed ? "ready" : "safe";
 }
-
 async function tick() {
-  try { sync(await (await fetch("/api/state")).json()); }
-  catch { say("Engine unreachable — retrying", true); }
+    try {
+        sync(await (await fetch("/api/state")).json());
+    }
+    catch {
+        say("Engine unreachable — retrying", true);
+    }
 }
-
 /* ---- controls ---- */
 function parOn(f, overrides) {
-  return String(f.channels.dimmer) in overrides || String(f.channels.red) in overrides;
+    return String(f.channels.dimmer) in overrides || String(f.channels.red) in overrides;
 }
 function buildTestPanel() {
-  const grid = $("parGrid");
-  for (const f of layout.fixtures) {
-    if (!f.name.startsWith("par")) continue;
-    const b = document.createElement("button");
-    b.textContent = f.name.toUpperCase();
-    b.onclick = () =>
-      post("/api/test/light", { name: f.name, on: !parOn(f, state.test.overrides) });
-    grid.appendChild(b);
-    litPars[f.name] = b;
-  }
-  const durs = { flame: [0.5, 1.0, 2.0], co2: [1.0, 3.0, 5.0, 10.0] };
-  for (const [kind, sel] of [["flame", $("flameDur")], ["co2", $("co2Dur")]])
-    for (const d of durs[kind].filter((d) => d <= layout.limits.max_burst[kind]))
-      sel.add(new Option(d.toFixed(1) + "s", d));
+    const grid = $("parGrid");
+    for (const f of layout.fixtures) {
+        if (!f.name.startsWith("par"))
+            continue;
+        const b = document.createElement("button");
+        b.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#i-light"/></svg><span>${f.name.toUpperCase()}</span>`;
+        b.onclick = () => post("/api/test/light", { name: f.name, on: !parOn(f, state.test.overrides) });
+        grid.appendChild(b);
+        litPars[f.name] = b;
+    }
+    const durs = { flame: [0.5, 1.0, 2.0], co2: [1.0, 3.0, 5.0, 10.0] };
+    for (const [kind, sel] of [["flame", $("flameDur")], ["co2", $("co2Dur")]])
+        for (const d of durs[kind].filter((d) => d <= layout.limits.max_burst[kind]))
+            sel.add(new Option(d.toFixed(1) + "s", d));
 }
-
+function setTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    const dark = theme === 'dark';
+    $('themeBtn').setAttribute('aria-pressed', String(dark));
+    $('themeBtn').setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    if (state && layout)
+        draw(state.frame);
+}
+let savedTheme = 'light';
+try {
+    savedTheme = localStorage.getItem('volcano-theme') === 'dark' ? 'dark' : 'light';
+}
+catch {
+}
+setTheme(savedTheme);
+$('themeBtn').onclick = () => {
+    const theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    setTheme(theme);
+    try {
+        localStorage.setItem('volcano-theme', theme);
+    }
+    catch {
+    }
+};
+$('helpBtn').onclick = () => $('helpDialog').showModal();
+$('closeHelp').onclick = () => $('helpDialog').close();
+$('helpDialog').addEventListener('click', e => {
+    if (e.target === $('helpDialog')) {
+        const r = e.target.getBoundingClientRect();
+        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom)
+            e.target.close();
+    }
+});
 $("triggerBtn").onclick = () => post("/api/trigger");
 $("holdBtn").onclick = () => post("/api/hold", { on: !state.hold });
 $("pauseBtn").onclick = () => post("/api/pause", { on: !(state.paused || state.pause_pending) });
 $("armBtn").onclick = () => {
-  if (!state.armed && !confirm("Arm pyro?\n\nPhysical switch must already be on. Confirm operators are in position and the spray path is clear."))
-    return;
-  post(state.armed ? "/api/disarm" : "/api/arm");
+    if (!state.armed && !confirm("Arm pyro?\n\nPhysical switch must already be on. Confirm operators are in position and the spray path is clear."))
+        return;
+    post(state.armed ? "/api/disarm" : "/api/arm");
 };
-$("testBtn").onclick = () =>
-  post("/api/test/enable", { on: !(state.test && state.test.enabled) });
-$("fogRange").oninput = () => { $("fogVal").textContent = $("fogRange").value; };
+$("testBtn").onclick = () => post("/api/test/enable", { on: !(state.test && state.test.enabled) });
+$("fogRange").oninput = () => {
+    $("fogVal").textContent = $("fogRange").value;
+};
 $("fogRange").onchange = () => post("/api/test/fog", { level: Number($("fogRange").value) });
 $("fireFlame").onclick = () => {
-  if (confirm(`Fire flame for ${$("flameDur").value}s?`))
-    post("/api/test/burst", { kind: "flame", duration: Number($("flameDur").value) });
+    if (confirm(`Fire flame for ${$("flameDur").value}s?`))
+        post("/api/test/burst", { kind: "flame", duration: Number($("flameDur").value) });
 };
 $("fireCo2").onclick = () => post("/api/test/burst", { kind: "co2", duration: Number($("co2Dur").value) });
 $("tankBtn").onclick = () => {
-  if (confirm("Reset CO2 tank meter? Only after physically connecting a fresh tank."))
-    post("/api/tank/reset");
+    if (confirm("Reset CO2 tank meter? Only after physically connecting a fresh tank."))
+        post("/api/tank/reset");
 };
 for (const b of document.querySelectorAll("#simBar button"))
-  b.onclick = () => post("/api/sim/speed", { speed: Number(b.dataset.speed) });
-
+    b.onclick = () => post("/api/sim/speed", { speed: Number(b.dataset.speed) });
 /* ---- audio pools + import + preview ---- */
 function audioRow(root, key, entries) {
-  const row = document.createElement("div"); row.className = "arow";
-  const k = document.createElement("span"); k.className = "akey"; k.textContent = key;
-  row.appendChild(k);
-  for (const e of entries) {
-    const c = document.createElement("span");
-    c.className = "chip" + (e.missing ? " miss" : "") + (e.unassigned ? " unassigned" : "");
-    c.textContent = e.file + (e.missing ? " ⚠" : "");
-    if (e.missing) {
-      c.title = "referenced in show.toml but not in assets/";
-    } else {
-      c.title = (e.unassigned ? "in assets/ but not referenced by any pool — " : "")
-        + "click to play on the show speaker";
-      c.style.cursor = "pointer";
-      c.onclick = () =>
-        post("/api/audio/preview?name=" + encodeURIComponent(e.file));
+    const row = document.createElement("div");
+    row.className = "arow";
+    const k = document.createElement("span");
+    k.className = "akey";
+    k.textContent = key;
+    row.appendChild(k);
+    for (const e of entries) {
+        const c = document.createElement(e.missing ? "span" : "button");
+        c.className = "chip" + (e.missing ? " miss" : "") + (e.unassigned ? " unassigned" : "");
+        c.textContent = e.file + (e.missing ? " ⚠" : "");
+        if (e.missing) {
+            c.title = "referenced in show.toml but not in assets/";
+        }
+        else {
+            c.title = (e.unassigned ? "in assets/ but not referenced by any pool — " : "")
+                + "click to play on the show speaker";
+            c.style.cursor = "pointer";
+            c.onclick = () => post("/api/audio/preview?name=" + encodeURIComponent(e.file));
+        }
+        row.appendChild(c);
     }
-    row.appendChild(c);
-  }
-  if (!entries.length) {
-    const n = document.createElement("span"); n.className = "anote"; n.textContent = "—";
-    row.appendChild(n);
-  }
-  root.appendChild(row);
+    if (!entries.length) {
+        const n = document.createElement("span");
+        n.className = "anote";
+        n.textContent = "—";
+        row.appendChild(n);
+    }
+    root.appendChild(row);
 }
-
 async function loadAudio() {
-  let a;
-  try { a = await (await fetch("/api/audio")).json(); } catch { return; }
-  if (a.ok === false) return;
-  $("audioPanel").style.display = "";
-  const root = $("audioPools");
-  root.replaceChildren();
-  for (const phase of ["dormant", "active", "imminent", "eruption"]) {
-    const p = a.phases[phase];
-    if (!p) continue;
-    for (const [role, entries] of Object.entries(p.roles)) {
-      const label = role === "accent"
-        ? `${phase} · accent (${p.accent_interval[0]}–${p.accent_interval[1]}s)`
-        : `${phase} · ${role}`;
-      audioRow(root, label, entries);
+    let a;
+    try {
+        a = await (await fetch("/api/audio")).json();
     }
-  }
-  for (const [arrow, entries] of Object.entries(a.transitions))
-    audioRow(root, arrow.replace("->", " → "), entries);
-  const unassigned = a.assets.filter((f) => !f.assigned)
-    .map((f) => ({ file: f.file, unassigned: true }));
-  if (unassigned.length) audioRow(root, "unassigned", unassigned);
+    catch {
+        return;
+    }
+    if (a.ok === false)
+        return;
+    $("audioPanel").style.display = "";
+    const root = $("audioPools");
+    root.replaceChildren();
+    for (const phase of ["dormant", "active", "imminent", "eruption"]) {
+        const p = a.phases[phase];
+        if (!p)
+            continue;
+        for (const [role, entries] of Object.entries(p.roles)) {
+            const label = role === "accent"
+                ? `${phase} · accent (${p.accent_interval[0]}–${p.accent_interval[1]}s)`
+                : `${phase} · ${role}`;
+            audioRow(root, label, entries);
+        }
+    }
+    for (const [arrow, entries] of Object.entries(a.transitions))
+        audioRow(root, arrow.replace("->", " → "), entries);
+    const unassigned = a.assets.filter((f) => !f.assigned)
+        .map((f) => ({ file: f.file, unassigned: true }));
+    if (unassigned.length)
+        audioRow(root, "unassigned", unassigned);
 }
-
 $("importBtn").onclick = () => $("audioFile").click();
 $("audioFile").onchange = async () => {
-  for (const file of $("audioFile").files) {
-    try {
-      const r = await fetch("/api/audio/upload?name=" + encodeURIComponent(file.name),
-        { method: "POST", body: file });
-      const data = await r.json();
-      if (data.ok === false) say(data.reason, true);
-      else say(`imported ${data.file}` +
-        (data.replaced ? " (replaced)" : "") +
-        (data.assigned ? "" : " — add it to [audio] in show.toml to use it"));
-    } catch { say("upload failed — engine unreachable?", true); }
-  }
-  $("audioFile").value = "";
-  loadAudio();
+    for (const file of $("audioFile").files) {
+        try {
+            const r = await fetch("/api/audio/upload?name=" + encodeURIComponent(file.name), { method: "POST", body: file });
+            const data = await r.json();
+            if (data.ok === false)
+                say(data.reason, true);
+            else
+                say(`imported ${data.file}` +
+                    (data.replaced ? " (replaced)" : "") +
+                    (data.assigned ? "" : " — add it to [audio] in show.toml to use it"));
+        }
+        catch {
+            say("upload failed — engine unreachable?", true);
+        }
+    }
+    $("audioFile").value = "";
+    loadAudio();
 };
-
-(async () => {
-  layout = await (await fetch("/api/layout")).json();
-  buildTestPanel();
-  loadAudio();
-  say("Console ready.");
-  setInterval(tick, 100);
-})();
+async function initialize() {
+    try {
+        const response = await fetch('/api/layout');
+        if (!response.ok)
+            throw new Error('Layout unavailable');
+        layout = await response.json();
+        buildTestPanel();
+        loadAudio();
+        say('Console ready.');
+        await tick();
+        setInterval(tick, 100);
+    }
+    catch {
+        say('Cannot connect to the show. Retrying…', true);
+        setTimeout(initialize, 2000);
+    }
+}
+initialize();
 </script>
 </body>
 </html>
