@@ -11,7 +11,7 @@ import pytest
 from dmx_volcano.driver.fake import FakeDriver
 from dmx_volcano.manual import TestConsole
 from dmx_volcano.phases import Phase
-from dmx_volcano.show import FLAME_SAFETY_ARM_VALUE, SimClock, build_engine
+from dmx_volcano.show import FLAME_ARM_LEAD, FLAME_SAFETY_ARM_VALUE, SimClock, build_engine
 
 CONFIG = Path(__file__).resolve().parents[1] / "config" / "show.toml"
 DT = 1 / 40
@@ -145,13 +145,18 @@ def test_test_burst_fires_through_gate_and_expires(engine):
     engine.console.request_burst("flame", 0.5)
     fire_ch = engine.rig["flame"].channel("fire")
     safety_ch = engine.rig["flame"].channel("safety")
-    frames = run(engine, 0.0, 1.0)
+    L = FLAME_ARM_LEAD
+    frames = run(engine, 0.0, L + 1.0)
     for t, frame in frames:
-        if DT <= t < 0.5 - DT:
+        if DT <= t < L - DT:  # arm lead: safety open, fire clamped
+            assert frame[fire_ch - 1] == 0, f"fire rose before the lead at t={t:.2f}"
+            assert frame[safety_ch - 1] == FLAME_SAFETY_ARM_VALUE
+        elif L + DT <= t < L + 0.5 - DT:
             assert frame[fire_ch - 1] == 255, f"flame should burn at t={t:.2f}"
             assert frame[safety_ch - 1] == FLAME_SAFETY_ARM_VALUE
-        elif t > 0.5 + DT:
+        elif t > L + 0.5 + DT:
             assert frame[fire_ch - 1] == 0, f"flame leaked at t={t:.2f}"
+            assert frame[safety_ch - 1] == 0, f"safety leaked at t={t:.2f}"
     assert engine.console.last_burst.granted is True
 
 

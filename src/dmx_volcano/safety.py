@@ -6,7 +6,12 @@ Invariants enforced here (see DESIGN.md "Safety invariants"):
 - Permits are time-boxed at issue; requesting one longer than the fixture's
   max burst raises rather than truncates (a cue asking for too much fire is
   a bug to surface, not accommodate).
-- Minimum gaps between bursts are enforced per fixture.
+- Minimum gaps between bursts are enforced per fixture, measured from the
+  end of one trigger window to the start of the next.
+- A burst may open an *arm* channel ahead of the trigger channel (the H-E01A
+  refuses to fire unless its safety channel is already open when the fire
+  channel rises). The arm channels are permitted from the request, the
+  trigger channels only from `now + arm_lead`; both permits expire together.
 - Disarming (or restart — arming state is never persisted) drops all permits.
 - The config pyro_enabled flag is a rehearsal interlock enforced here, not in
   the web layer: arm() refuses while it is off.
@@ -27,6 +32,7 @@ MIN_GAP = {"flame": 3.0, "co2": 5.0}
 class Permit:
     channels: set[int]
     expires_at: float
+    starts_at: float = float("-inf")  # clamped until then, even if issued
 
 
 @dataclass
@@ -58,9 +64,21 @@ class SafetyGate:
         return max(0.0, last_end + MIN_GAP[kind] - now)
 
     def request_burst(
-        self, kind: str, channels: set[int], duration: float, now: float | None = None
+        self,
+        kind: str,
+        channels: set[int],
+        duration: float,
+        now: float | None = None,
+        *,
+        arm_channels: set[int] = frozenset(),
+        arm_lead: float = 0.0,
     ) -> bool:
-        """Ask permission for a time-boxed pyro burst. Returns False if denied."""
+        """Ask permission for a time-boxed pyro burst. Returns False if denied.
+
+        `channels` (the trigger) are permitted for `duration` seconds starting
+        `arm_lead` after now; `arm_channels` are permitted from now until the
+        same end. `duration` is the trigger time and is what MAX_BURST bounds;
+        the lead only ever adds arm-channel time, never fire time."""
         now = time.monotonic() if now is None else now
         if not self.pyro_enabled:
             return False
@@ -68,10 +86,20 @@ class SafetyGate:
             raise ValueError(
                 f"{kind} burst of {duration}s exceeds max {MAX_BURST[kind]}s"
             )
-        if now - self._last_burst_end.get(kind, float("-inf")) < MIN_GAP[kind]:
+        if arm_lead < 0:
+            raise ValueError(f"arm_lead must be >= 0, got {arm_lead}")
+        fire_start = now + arm_lead
+        end = fire_start + duration
+        if fire_start - self._last_burst_end.get(kind, float("-inf")) < MIN_GAP[kind]:
             return False
-        self._permits.append(Permit(channels=channels, expires_at=now + duration))
-        self._last_burst_end[kind] = now + duration
+        if arm_channels:
+            self._permits.append(
+                Permit(channels=set(arm_channels), starts_at=now, expires_at=end)
+            )
+        self._permits.append(
+            Permit(channels=set(channels), starts_at=fire_start, expires_at=end)
+        )
+        self._last_burst_end[kind] = end
         return True
 
     def clamp(self, frame: bytearray, now: float | None = None) -> None:
@@ -82,6 +110,7 @@ class SafetyGate:
         permitted: set[int] = set()
         if self.pyro_enabled:
             for permit in self._permits:
-                permitted |= permit.channels
+                if permit.starts_at <= now:
+                    permitted |= permit.channels
         for channel in self.pyro_channels - permitted:
             frame[channel - 1] = 0

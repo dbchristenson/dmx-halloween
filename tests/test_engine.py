@@ -12,7 +12,7 @@ import pytest
 
 from dmx_volcano.driver.fake import FakeDriver
 from dmx_volcano.phases import Phase
-from dmx_volcano.show import FLAME_SAFETY_ARM_VALUE, build_engine
+from dmx_volcano.show import FLAME_ARM_LEAD, FLAME_SAFETY_ARM_VALUE, build_engine
 
 CONFIG = Path(__file__).resolve().parents[1] / "config" / "show.toml"
 DT = 1 / 40
@@ -63,15 +63,23 @@ def test_armed_eruption_fires_flame_only_in_cue_windows(engine):
     co2_ch = engine.rig["co2"].channel("jet")
 
     # Cue timeline: flame bursts at t=5 and t=9 (0.8s), co2 at t=4 (1.5s),
-    # all relative to eruption start at t=E.
-    flame_edges = (E + 5.0, E + 5.8, E + 9.0, E + 9.8)
+    # all relative to eruption start at t=E. A flame cue opens the safety
+    # channel at its t and raises fire FLAME_ARM_LEAD later, so fire burns
+    # over [t+lead, t+lead+0.8) while safety holds over [t, t+lead+0.8).
+    L = FLAME_ARM_LEAD
+    fire_windows = ((E + 5.0 + L, E + 5.8 + L), (E + 9.0 + L, E + 9.8 + L))
+    arm_windows = ((E + 5.0, E + 5.8 + L), (E + 9.0, E + 9.8 + L))
+    flame_edges = tuple(e for w in fire_windows + arm_windows for e in w)
     co2_edges = (E + 4.0, E + 5.5)
     for t, frame in frames:
         fire = frame[fire_ch - 1]
         if not near_edge(t, flame_edges):
-            in_window = (E + 5.0 <= t < E + 5.8) or (E + 9.0 <= t < E + 9.8)
-            if in_window:
+            if any(a <= t < b for a, b in fire_windows):
                 assert fire == 255, f"flame should burn at t={t:.2f}"
+                assert frame[safety_ch - 1] == FLAME_SAFETY_ARM_VALUE
+            elif any(a <= t < b for a, b in arm_windows):
+                # the lead: safety open, fire still clamped
+                assert fire == 0, f"fire rose before the arm lead at t={t:.2f}"
                 assert frame[safety_ch - 1] == FLAME_SAFETY_ARM_VALUE
             else:
                 assert fire == 0, f"flame leaked at t={t:.2f}"
@@ -99,11 +107,12 @@ def test_disarm_mid_burst_kills_flame_next_frame(engine):
     engine.gate.arm()
     engine.machine.request_eruption()
     E = engine.machine.config.imminent_duration
-    run(engine, 0.0, E + 5.2)  # into the first flame burst
+    t = E + 5.0 + FLAME_ARM_LEAD + 0.2  # into the first flame burst's fire window
+    run(engine, 0.0, t)
     fire_ch = engine.rig["flame"].channel("fire")
     assert engine.driver.last_frame[fire_ch - 1] == 255
     engine.gate.disarm()
-    engine.step(E + 5.25)
+    engine.step(t + DT)
     assert engine.driver.last_frame[fire_ch - 1] == 0
 
 

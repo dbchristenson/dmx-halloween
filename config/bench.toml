@@ -11,7 +11,9 @@
 #     cycle takes under 30 seconds.
 #   - dormant/active dwells are ~infinite: NOTHING transitions on its own;
 #     every phase change during a bench session is an explicit operator act.
-#   - No flame cues (flame machine not yet on the chain).
+#   - One 0.5s flame cue, dry-fired (no LPG) — flame machine is on the chain
+#     as of 2026-09-11; the H-E01A safety channel is driven only under a
+#     SafetyGate permit, identical to the show path.
 
 [show]
 frame_rate = 40
@@ -67,19 +69,34 @@ color = [255, 60, 0]
 dimmer = [40, 255]
 strobe_hz = 8.0
 
-# Eruption timeline, bench edition: one short CO2 pop, PAR strobe from the
-# phase render. No fog, no flame, no sound assets required.
+# Eruption timeline, bench edition: one short CO2 pop, one short flame pop,
+# PAR strobe from the phase render. No fog, no sound assets required.
 [[cues.eruption]]
 t = 2.0
 action = "co2_burst"
 duration = 0.5
 
-# Fixture addressing — identical to show.toml. DMX chain ORDER is irrelevant
-# (docs/DMX_ADDRESSING.md); only these start addresses must match what each
-# fixture's own display/DIP switches are set to.
+[[cues.eruption]]
+t = 5.0
+action = "flame_burst"
+duration = 0.5
+
+# Fixture addressing — the BENCH CHAIN as physically wired (2026-09-11), NOT
+# the show.toml plan. DMX chain ORDER is irrelevant (docs/DMX_ADDRESSING.md);
+# only these start addresses must match what each fixture's own display is
+# set to. Read them off the device before every session.
+#
+#   device            display   address
+#   H-E01A flame      d100      100  (safety = 100, fire = 101)
+#   MK-C09 CO2        d010       10  (jet = 10)
+#   PAR "light 1"     A030       30  <- was A010: collided with the CO2 jet
+#   PAR "light 2"     A020       20
+#
+# The fogger is NOT on the bench chain; it keeps a config entry only because
+# the render path requires one. Parked at 200, far from anything real.
 
 [fixtures.flame]
-address = 1
+address = 100
 channels = { safety = 0, fire = 1 }
 pyro = true
 position = [0.0, 0.5]
@@ -91,7 +108,7 @@ pyro = true
 position = [0.0, -0.5]
 
 [fixtures.fogger]
-address = 20
+address = 200            # placeholder: no fogger on the bench chain
 channels = { fog = 0, red = 1, green = 2, blue = 3 }
 position = [0.0, 0.0]
 
@@ -101,36 +118,6 @@ channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [1.5, 1.5]
 
 [fixtures.par2]
-address = 37
+address = 20
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [-1.5, 1.5]
-
-[fixtures.par3]
-address = 44
-channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
-position = [1.5, -1.5]
-
-[fixtures.par4]
-address = 51
-channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
-position = [-1.5, -1.5]
-
-[fixtures.par5]
-address = 58
-channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
-position = [3.0, 0.0]
-
-[fixtures.par6]
-address = 65
-channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
-position = [-3.0, 0.0]
-
-[fixtures.par7]
-address = 72
-channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
-position = [0.0, 3.0]
-
-[fixtures.par8]
-address = 79
-channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
-position = [0.0, -3.0]

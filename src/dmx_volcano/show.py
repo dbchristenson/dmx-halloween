@@ -37,7 +37,12 @@ from .stats import DwellConfig
 
 CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "show.toml"
 ASSETS_DIR = Path(__file__).resolve().parents[2] / "assets"
-FLAME_SAFETY_ARM_VALUE = 130  # H-E01A arm window is 102-153; confirm from manual
+FLAME_SAFETY_ARM_VALUE = 130  # H-E01A arm window is 102-153 (manual, 2CH mode)
+# The H-E01A only fires if its safety channel is already open when the fire
+# channel rises ("activate the safety channel, then use channel 2"). Raising
+# both in the same frame armed nothing on the 2026-09-11 bench. So a flame
+# burst opens safety this long before fire; the gate clamps fire until then.
+FLAME_ARM_LEAD = 0.5
 
 # Per-phase lighting parameters; [looks.<phase>] in show.toml overrides keys.
 DEFAULT_LOOKS = {
@@ -109,17 +114,21 @@ class EffectOverlay:
     clamp is what actually guarantees pyro shutoff."""
 
     def __init__(self) -> None:
-        self._active: dict[int, tuple[int, float]] = {}  # channel -> (value, until)
+        # channel -> (value, since, until)
+        self._active: dict[int, tuple[int, float, float]] = {}
 
-    def set(self, channel: int, value: int, until: float) -> None:
-        self._active[channel] = (value, until)
+    def set(
+        self, channel: int, value: int, until: float, since: float = float("-inf")
+    ) -> None:
+        self._active[channel] = (value, since, until)
 
     def apply(self, universe: Universe, now: float) -> None:
-        expired = [ch for ch, (_, until) in self._active.items() if until <= now]
+        expired = [ch for ch, (_, _, until) in self._active.items() if until <= now]
         for ch in expired:
             del self._active[ch]
-        for ch, (value, _) in self._active.items():
-            universe[ch] = value
+        for ch, (value, since, _) in self._active.items():
+            if since <= now:
+                universe[ch] = value
 
 
 def render(
@@ -294,12 +303,14 @@ class ShowEngine:
             safety_ch = self.rig["flame"].channel("safety")
             fire_ch = self.rig["flame"].channel("fire")
             granted = self.gate.request_burst(
-                "flame", {safety_ch, fire_ch}, duration, now=now
+                "flame", {fire_ch}, duration, now=now,
+                arm_channels={safety_ch}, arm_lead=FLAME_ARM_LEAD,
             )
             if granted:
-                until = now + duration
+                fire_start = now + FLAME_ARM_LEAD
+                until = fire_start + duration
                 self.overlay.set(safety_ch, FLAME_SAFETY_ARM_VALUE, until)
-                self.overlay.set(fire_ch, 255, until)
+                self.overlay.set(fire_ch, 255, until, since=fire_start)
         return granted
 
     def _track_co2(self, duration: float) -> None:

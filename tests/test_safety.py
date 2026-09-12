@@ -99,3 +99,66 @@ def test_non_pyro_channels_untouched():
     frame[100] = 200  # a PAR channel
     gate.clamp(frame, now=0.0)
     assert frame[100] == 200
+
+
+def test_arm_lead_opens_safety_before_fire_and_expires_together():
+    gate = armable_gate()
+    gate.arm()
+    assert gate.request_burst(
+        "flame", {FLAME_FIRE}, 0.8, now=0.0, arm_channels={FLAME_SAFETY}, arm_lead=0.5
+    )
+    frame = frame_with_fire()
+    gate.clamp(frame, now=0.2)  # inside the lead
+    assert frame[FLAME_SAFETY - 1] == 130
+    assert frame[FLAME_FIRE - 1] == 0
+    frame = frame_with_fire()
+    gate.clamp(frame, now=0.7)  # fire window: [0.5, 1.3)
+    assert frame[FLAME_SAFETY - 1] == 130
+    assert frame[FLAME_FIRE - 1] == 255
+    frame = frame_with_fire()
+    gate.clamp(frame, now=1.31)
+    assert frame[FLAME_SAFETY - 1] == 0
+    assert frame[FLAME_FIRE - 1] == 0
+
+
+def test_arm_lead_never_extends_fire_time():
+    gate = armable_gate()
+    gate.arm()
+    # Max-length burst plus a lead is legal: the lead adds arm time only.
+    assert gate.request_burst(
+        "flame", {FLAME_FIRE}, MAX_BURST["flame"], now=0.0,
+        arm_channels={FLAME_SAFETY}, arm_lead=0.5,
+    )
+    fire_on = 0
+    t = 0.0
+    while t < 4.0:
+        frame = frame_with_fire()
+        gate.clamp(frame, now=t)
+        fire_on += frame[FLAME_FIRE - 1] == 255
+        t += 0.025
+    assert fire_on == pytest.approx(MAX_BURST["flame"] / 0.025, abs=1)
+    with pytest.raises(ValueError):
+        gate.request_burst(
+            "flame", {FLAME_FIRE}, MAX_BURST["flame"] + 0.1, now=10.0,
+            arm_channels={FLAME_SAFETY}, arm_lead=0.5,
+        )
+
+
+def test_min_gap_measured_from_fire_end_to_next_fire_start():
+    gate = armable_gate()
+    gate.arm()
+    # fire window [0.5, 1.3) -> next fire may start at 1.3 + MIN_GAP
+    assert gate.request_burst(
+        "flame", {FLAME_FIRE}, 0.8, now=0.0, arm_channels={FLAME_SAFETY}, arm_lead=0.5
+    )
+    ready = 1.3 + MIN_GAP["flame"]
+    assert not gate.request_burst(
+        "flame", {FLAME_FIRE}, 0.8, now=ready - 0.5 - 0.1,
+        arm_channels={FLAME_SAFETY}, arm_lead=0.5,
+    )
+    assert gate.request_burst(
+        "flame", {FLAME_FIRE}, 0.8, now=ready - 0.5 + 0.01,
+        arm_channels={FLAME_SAFETY}, arm_lead=0.5,
+    )
+    with pytest.raises(ValueError):
+        gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=100.0, arm_lead=-1.0)

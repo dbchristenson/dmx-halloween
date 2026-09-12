@@ -122,6 +122,9 @@ strobe_hz = 8.0
 # --- Eruption cue timeline ----------------------------------------------
 # t = seconds from eruption start. Pyro cues must respect the safety gate
 # (flame: <=2.0s bursts, >=3s gap; co2: <=10s bursts, >=5s gap) or they are
+# DENIED. A flame cue opens the H-E01A safety channel at t and fires 0.5s
+# later (the machine ignores fire unless safety is already open), so the
+# flame is visible over [t+0.5, t+0.5+duration).
 # DENIED and logged with granted=false. The gate wins, by design.
 # The eruption entry roar comes from [audio.phases.eruption] start; use a
 # sound cue here only for audio sync'd to a mid-timeline moment.

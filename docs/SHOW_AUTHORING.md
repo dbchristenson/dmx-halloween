@@ -138,7 +138,7 @@ Action reference:
 | `sound` | `file` | plays once from `assets/` |
 | `fog` | `level` (0–255) | holds until the eruption ends |
 | `co2_burst` | `duration` (s) | max 10s, min 5s gap between bursts; consumes tracked CO2 |
-| `flame_burst` | `duration` (s) | max 2.0s, min 3s gap (end-to-start); safety channel handled automatically |
+| `flame_burst` | `duration` (s) | max 2.0s, min 3s gap (fire end to next fire start); the safety channel opens at `t` and fire rises 0.5s later (`FLAME_ARM_LEAD`), so the flame itself burns over `[t+0.5, t+0.5+duration)` |
 | `pars` / `fade` | — | currently no-ops; eruption lighting comes from `[looks.eruption]` |
 
 Timing rules to respect (or the gate denies the cue):
