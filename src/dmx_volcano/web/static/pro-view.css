@@ -107,6 +107,11 @@
 #proFixtures { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px; padding: 8px 14px 14px; }
 .pro-fixture { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--dust); }
 .pro-fixture i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--line); }
+.pro-presets { display: flex; justify-content: center; gap: 8px; padding: 8px 14px 4px; }
+.pro-presets button { font-size: 12px; padding: 7px 12px; min-height: 40px; }
+.pro-effect-status { border-left: 1px solid var(--line); padding-left: 9px; }
+.pro-effect-status.firing { color: var(--magma); font-weight: 700; }
+.pro-preview-note { text-align: center; color: var(--dust); font-size: 11px; padding: 3px 14px; }
 @media (max-width: 760px) {
   .pro-viewport { height: 420px; }
 }

@@ -626,6 +626,9 @@ dialog::backdrop {
     <div class="pro-tools" aria-label="3D camera controls"><button id="proZoomIn" aria-label="Zoom in">+</button><button id="proZoomOut" aria-label="Zoom out">−</button><button id="proReset">Reset view</button></div>
   </div>
   <p id="proInstructions">Drag or swipe to orbit · Scroll or pinch to zoom</p>
+  <div class="pro-presets" aria-label="Camera views"><button id="proCrater">Crater close-up</button><button id="proEntireEffect">Entire effect</button></div>
+  <div class="pro-presets" aria-label="Visual effect previews"><button id="proPreviewFlame">Preview flame</button><button id="proPreviewCo2">Preview CO₂</button></div>
+  <p class="pro-preview-note">Visual previews only. No DMX output.</p>
   <div id="proFixtures" aria-label="Live fixture colors"></div>
 </div>
 <div class="legend" id="stageDescription"><span><svg class="icon" aria-hidden="true"><use href="#i-light"/></svg>Lights</span><span><svg class="icon" aria-hidden="true"><use href="#i-fog"/></svg>Fog</span><span><svg class="icon" aria-hidden="true"><use href="#i-flame"/></svg>Flame</span><span><svg class="icon" aria-hidden="true"><use href="#i-jet"/></svg>CO₂</span></div>
@@ -709,6 +712,7 @@ dialog::backdrop {
 <h3>CO₂ tank</h3><p>The meter estimates the remaining supply. Reset it only after physically connecting a fresh tank.</p>
 <h3>Make yourself comfortable</h3><p>Use the moon button to switch between light and dark themes. Your choice is saved on this device. Close this guide with the × button or Escape.</p>
 <h3>Explore in 3D</h3><p>Switch on Pro view at the bottom of the page. Drag or swipe the volcano to orbit; scroll or pinch to zoom. You can also focus the stage and use arrow keys, +/−, and Home. Reset view returns to the starting angle. Fixture colors follow the live output; the shape and light aim are an illustrative preview of the prop. Pro view changes only your display.</p>
+<p>Crater close-up shows the flamethrower and CO₂ cannon. Entire effect fits the tall gas column in the view. Preview flame and Preview CO₂ play brief visual previews without sending DMX commands; the stage is labeled while a preview runs.</p>
 </div></dialog>
 
 <script>
@@ -1103,6 +1107,10 @@ $('proRetry').onclick = () => {
     ensureProView();
 };
 $('proReset').onclick = () => proView?.reset();
+$('proCrater').onclick = () => proView?.framePreset('crater');
+$('proEntireEffect').onclick = () => proView?.framePreset('effect');
+$('proPreviewFlame').onclick = () => proView?.previewEffect('flame');
+$('proPreviewCo2').onclick = () => proView?.previewEffect('co2');
 $('proZoomIn').onclick = () => proView?.zoom(1 / 1.15);
 $('proZoomOut').onclick = () => proView?.zoom(1.15);
 try { setProMode(localStorage.getItem('volcano-pro') === 'true'); } catch {}

@@ -2,10 +2,12 @@ import * as THREE from './vendor/three/three.module.min.js';
 import { OrbitControls } from './vendor/three/OrbitControls.js';
 import { GLTFLoader } from './vendor/three/GLTFLoader.js';
 import { fixtureOutput } from './pro-lighting.mjs';
+import { FlameEffect, CO2Effect, CO2_HEIGHT } from './pro-effects.mjs';
 
 const MODEL_URL = new URL('./models/volcano.glb', import.meta.url);
-const HOME = new THREE.Vector3(6.8, 7.0, 8.6);
-const TARGET = new THREE.Vector3(0, 1.15, 0);
+const MACHINES_URL = new URL('./models/pyro-fixtures.glb', import.meta.url);
+const HOME = new THREE.Vector3(6.8, 7.5, 8.6);
+const TARGET = new THREE.Vector3(0, 2.0, 0);
 
 export async function createVolcanoView(host, layout, onError) {
   const view = new VolcanoView(host, layout, onError);
@@ -24,6 +26,9 @@ class VolcanoView {
     this.layout = layout;
     this.onError = onError;
     this.fixtures = [];
+    this.preview = null;
+    this.previewTimer = 0;
+    this.latestFrame = null;
     this.active = false;
     this.inView = true;
     this.disposed = false;
@@ -33,8 +38,8 @@ class VolcanoView {
     this.abort = new AbortController();
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x14212c);
-    this.scene.fog = new THREE.Fog(0x14212c, 15, 28);
-    this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 60);
+    this.scene.fog = new THREE.Fog(0x14212c, 35, 70);
+    this.camera = new THREE.PerspectiveCamera(42, 1, 0.05, 100);
     this.camera.position.copy(HOME);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'low-power' });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.75));
@@ -56,8 +61,8 @@ class VolcanoView {
     this.controls.enableDamping = !this.reducedMotion.matches;
     this.controls.dampingFactor = 0.09;
     this.controls.rotateSpeed = 0.65;
-    this.controls.minDistance = 4.2;
-    this.controls.maxDistance = 16;
+    this.controls.minDistance = 1.0;
+    this.controls.maxDistance = 45;
     this.controls.minPolarAngle = 0.12;
     this.controls.maxPolarAngle = Math.PI / 2 - 0.05;
     this.controls.update();
@@ -94,6 +99,12 @@ class VolcanoView {
       object.receiveShadow = true;
     });
     this.scene.add(this.model);
+    const machinesResponse = await fetch(MACHINES_URL, { signal: AbortSignal.timeout(20000) });
+    if (!machinesResponse.ok) throw new Error(`Effect models returned HTTP ${machinesResponse.status}`);
+    const machines = await new GLTFLoader().parseAsync(await machinesResponse.arrayBuffer(), MACHINES_URL.href);
+    this.machineTemplates = machines.scene;
+    this.machineTemplates.visible = false;
+    this.scene.add(this.machineTemplates); // Own template resources for cleanup, too.
     this.buildStage();
     for (const fixture of this.layout.fixtures) this.addFixture(fixture);
     this.resize();
@@ -189,44 +200,73 @@ class VolcanoView {
       record.chip = chip;
       record.dot = dot;
     }
-    if (fixture.channels.fog !== undefined || fixture.channels.jet !== undefined) {
-      const jet = fixture.channels.jet !== undefined;
-      record.plume = this.makePlume(jet ? 0xc9efff : 0xbac9d1, jet);
+    if (fixture.channels.fog !== undefined) {
+      record.plume = this.makePlume();
       record.plume.position.set(x, 2.70, -north);
       this.scene.add(record.plume);
     }
+    if (fixture.channels.jet !== undefined) {
+      const outlet = this.addMachine(record, 'co2');
+      record.jet = new CO2Effect();
+      record.jet.position.copy(outlet);
+      this.scene.add(record.jet);
+    }
     if (fixture.channels.fire !== undefined) {
-      record.flame = new THREE.Group();
-      for (const [radius, height, color] of [[0.14, 1.35, 0xff650b], [0.07, 0.98, 0xffe8a0]]) {
-        const flame = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 12, 1, true),
-          new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide }));
-        flame.position.y = height / 2;
-        record.flame.add(flame);
-      }
-      record.flame.position.set(x, 2.85, -north);
-      record.flameLight = new THREE.PointLight(0xff7a25, 0, 7, 2);
-      record.flameLight.position.set(x, 3.15, -north);
+      const outlet = this.addMachine(record, 'flame');
+      record.flame = new FlameEffect();
+      record.flame.position.copy(outlet);
+      record.flameLight = new THREE.PointLight(0xff912f, 0, 8, 2);
+      record.flameLight.position.copy(outlet).add(new THREE.Vector3(0, 0.45, 0));
       this.scene.add(record.flame, record.flameLight);
     }
     this.fixtures.push(record);
   }
 
-  makePlume(color, jet) {
+  addMachine(record, kind) {
+    const template = this.machineTemplates.children.find(object => object.userData.fixture_kind === kind);
+    if (!template) throw new Error(`Missing ${kind} machine model`);
+    const hardware = template.clone(true);
+    const [x = 0, north = 0] = record.fixture.position || [];
+    // Position the visible housings on the crater deck; retain configured plan positions.
+    hardware.position.set(x, Math.hypot(x, north) < 1.8 ? 3.0 : 0.04, -north);
+    let outlet;
+    hardware.traverse(object => {
+      if (object.isMesh) object.castShadow = object.receiveShadow = true;
+      if (object.userData.outlet) outlet = object;
+    });
+    if (!outlet) throw new Error(`Missing ${kind} nozzle marker`);
+    this.scene.add(hardware);
+    record.hardware = hardware;
+    hardware.updateWorldMatrix(true, true);
+    const origin = outlet.getWorldPosition(new THREE.Vector3());
+    const label = this.label(kind === 'co2' ? 'CO₂' : 'FLAME');
+    label.position.copy(origin).add(new THREE.Vector3(kind === 'co2' ? -0.22 : 0.22, 0.15, 0));
+    this.scene.add(label);
+    const chip = document.createElement('span');
+    chip.className = 'pro-fixture pro-effect-status';
+    record.effectLabel = kind === 'co2' ? 'CO₂' : 'Flame';
+    chip.textContent = `${record.effectLabel} off`;
+    document.getElementById('proFixtures').appendChild(chip);
+    record.effectChip = chip;
+    return origin;
+  }
+
+  makePlume() {
     const group = new THREE.Group();
     const geometry = new THREE.IcosahedronGeometry(1, 2);
     for (let i = 0; i < 16; i++) {
       const puff = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
-        color, transparent: true, opacity: 0, depthWrite: false,
+        color: 0xbac9d1, transparent: true, opacity: 0, depthWrite: false,
       }));
       puff.userData.seed = i / 16;
       group.add(puff);
     }
-    group.userData.jet = jet;
     return group;
   }
 
   updateFrame(frame, connected = true) {
     this.connected = connected;
+    this.latestFrame = frame;
     for (const record of this.fixtures) {
       const output = fixtureOutput(record.fixture, frame);
       record.output = output;
@@ -242,32 +282,55 @@ class VolcanoView {
         record.chip.setAttribute('aria-label', `${record.fixture.name}: ${level}% output`);
       }
       if (record.flame) {
-        record.flame.visible = output.fire > 0;
-        record.flameLight.intensity = output.fire * 25;
+        const level = this.preview?.kind === 'flame' ? 1 : output.fire;
+        record.flame.setLevel(level);
+        record.flameLight.intensity = level * 38;
       }
-      if (record.plume) record.plume.visible = output.fog > 0 || output.jet > 0;
+      if (record.jet) record.jet.setLevel(this.preview?.kind === 'co2' ? 1 : output.jet);
+      if (record.plume) record.plume.visible = output.fog > 0;
+      if (record.effectChip) {
+        const previewing = (record.flame && this.preview?.kind === 'flame') || (record.jet && this.preview?.kind === 'co2');
+        const on = previewing || output.fire > 0 || output.jet > 0;
+        record.effectChip.textContent = `${record.effectLabel} ${previewing ? 'preview' : on ? 'firing' : 'off'}`;
+        record.effectChip.classList.toggle('firing', on);
+      }
     }
     const status = document.getElementById('proConnection');
-    status.textContent = connected ? 'Live output' : 'Connection lost · lighting paused';
+    status.textContent = this.preview ? 'Visual preview · no DMX output' : connected ? 'Live output' : 'Connection lost · lighting paused';
     status.classList.toggle('disconnected', !connected);
+  }
+
+  previewEffect(kind) {
+    if (!this.active || !['flame', 'co2'].includes(kind)) return;
+    if (!this.fixtures.some(record => kind === 'flame' ? record.flame : record.jet)) return;
+    clearTimeout(this.previewTimer);
+    this.preview = { kind };
+    this.framePreset(kind === 'co2' ? 'effect' : 'stage');
+    this.updateFrame(this.latestFrame, this.connected);
+    this.previewTimer = setTimeout(() => this.stopPreview(), 2500);
+  }
+
+  stopPreview() {
+    clearTimeout(this.previewTimer);
+    this.previewTimer = 0;
+    this.preview = null;
+    this.updateFrame(this.latestFrame, this.connected);
   }
 
   animateEffects(time) {
     const t = this.reducedMotion.matches ? 0 : time * 0.001;
     for (const record of this.fixtures) {
-      if (record.flame?.visible) {
-        record.flame.scale.set(1 + Math.sin(t * 23) * 0.10, 1 + Math.sin(t * 31) * 0.10, 1);
-      }
+      record.flame?.update(time * 0.001, this.reducedMotion.matches);
+      record.jet?.update(time * 0.001, this.reducedMotion.matches);
       if (!record.plume?.visible) continue;
-      const jet = record.plume.userData.jet;
-      const amount = jet ? record.output.jet : record.output.fog;
+      const amount = record.output.fog;
       for (const puff of record.plume.children) {
-        const age = (puff.userData.seed + t * (jet ? 0.8 : 0.15)) % 1;
-        const size = jet ? 0.065 + age * 0.26 : 0.15 + age * 0.55;
-        puff.position.set(Math.sin(puff.userData.seed * 29 + t * 0.3) * age * (jet ? 0.12 : 0.5),
-          age * (jet ? 2.1 : 1.6), Math.cos(puff.userData.seed * 33) * age * (jet ? 0.12 : 0.35));
-        puff.scale.set(size, size * (jet ? 1.7 : 0.8), size);
-        puff.material.opacity = Math.sin(age * Math.PI) * amount * (jet ? 0.24 : 0.075);
+        const age = (puff.userData.seed + t * 0.15) % 1;
+        const size = 0.15 + age * 0.55;
+        puff.position.set(Math.sin(puff.userData.seed * 29 + t * 0.3) * age * 0.5,
+          age * 1.6, Math.cos(puff.userData.seed * 33) * age * 0.35);
+        puff.scale.set(size, size * 0.8, size);
+        puff.material.opacity = Math.sin(age * Math.PI) * amount * 0.075;
       }
     }
   }
@@ -304,6 +367,31 @@ class VolcanoView {
     this.controls.update();
     this.controls.reset();
     this.controls.enableDamping = damping;
+    this.cameraPreset = 'stage';
+  }
+
+  framePreset(preset) {
+    this.reset();
+    this.cameraPreset = preset;
+    if (preset === 'stage') {
+      return;
+    } else if (preset === 'crater') {
+      this.controls.target.set(0, 3.1, 0);
+      this.camera.position.set(1.1, 4.5, 1.9);
+    } else if (preset === 'effect') {
+      const bounds = new THREE.Box3(new THREE.Vector3(-3.7, -0.2, -3.7), new THREE.Vector3(3.7, 3.2, 3.7));
+      for (const record of this.fixtures) {
+        if (record.jet) bounds.expandByPoint(record.jet.position.clone().add(new THREE.Vector3(0, CO2_HEIGHT + 0.5, 0)));
+        if (record.flame) bounds.expandByPoint(record.flame.position.clone().add(new THREE.Vector3(0, record.flame.height, 0)));
+      }
+      const center = bounds.getCenter(new THREE.Vector3());
+      const size = bounds.getSize(new THREE.Vector3());
+      const halfFov = THREE.MathUtils.degToRad(this.camera.fov / 2);
+      const distance = Math.max(size.y, size.x / this.camera.aspect) / (2 * Math.tan(halfFov)) * 1.30 + size.z / 2;
+      this.controls.target.copy(center);
+      this.camera.position.copy(center).add(new THREE.Vector3(0.50, 0.16, 0.85).normalize().multiplyScalar(distance));
+    }
+    this.controls.update();
   }
 
   resize() {
@@ -313,10 +401,12 @@ class VolcanoView {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
+    if (this.cameraPreset === 'effect') this.framePreset('effect');
   }
 
   setActive(active) {
     this.active = active;
+    if (!active && this.preview) this.stopPreview();
     this.controls.enabled = active;
     if (active) this.resize();
     this.schedule();
@@ -348,6 +438,7 @@ class VolcanoView {
   dispose() {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
+    clearTimeout(this.previewTimer);
     this.abort.abort();
     this.resizeObserver.disconnect();
     this.intersectionObserver.disconnect();
@@ -364,7 +455,10 @@ class VolcanoView {
       }
     });
     for (const resource of resources) resource.dispose();
-    for (const record of this.fixtures) record.chip?.remove();
+    for (const record of this.fixtures) {
+      record.chip?.remove();
+      record.effectChip?.remove();
+    }
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }
