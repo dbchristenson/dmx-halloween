@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DMX Volcano — Control</title>
+<title>DMX Volcano — Home</title>
+<link rel="stylesheet" href="/static/navigation.css">
+<script type="module" src="/static/navigation.mjs"></script>
 <style>
 :root {
   color-scheme:light;
@@ -1016,7 +1018,7 @@ function buildTestPanel() {
         grid.appendChild(b);
         litPars[f.name] = b;
     }
-    const durs = { flame: [0.5, 1.0, 2.0], co2: [1.0, 3.0, 5.0, 10.0] };
+    const durs = { flame: [0.5, 1.0, 2.0, 3.0], co2: [1.0, 2.0, 3.0, 4.0] };
     for (const [kind, sel] of [["flame", $("flameDur")], ["co2", $("co2Dur")]])
         for (const d of durs[kind].filter((d) => d <= layout.limits.max_burst[kind]))
             sel.add(new Option(d.toFixed(1) + "s", d));

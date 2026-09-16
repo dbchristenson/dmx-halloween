@@ -134,7 +134,7 @@ def test_console_refuses_pyro_channels():
 def test_console_refuses_overlong_burst():
     console = TestConsole(pyro_channels=set())
     with pytest.raises(ValueError):
-        console.request_burst("flame", 2.5)
+        console.request_burst("flame", 3.1)
     with pytest.raises(ValueError):
         console.request_burst("lava", 1.0)
 

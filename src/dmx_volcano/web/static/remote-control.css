@@ -1,0 +1,38 @@
+:root {
+  color-scheme:light;
+  --bg:#f3f6f8;
+  --panel:#fff;
+  --panel-2:#edf2f6;
+  --line:#d5e0e6;
+  --ash:#203441;
+  --dust:#576c7b;
+  --magma:#c84416;
+  --amber:#956300;
+  --ice:#136c8d;
+  --moss:#24745d;
+  --danger:#bd2839;
+  --stage:#eaf2f5;
+  --rock:#bacbd2;
+  --ridge:#93adb9;
+  --crater:#526f7d;
+  --label:600 .8rem/1.4 "Avenir Next",Avenir,sans-serif
+}
+:root[data-theme=dark] {
+  color-scheme:dark;
+  --bg:#13212b;
+  --panel:#1c2e3a;
+  --panel-2:#263c49;
+  --line:#3a5362;
+  --ash:#eef5f8;
+  --dust:#b1c4ce;
+  --magma:#ff9b70;
+  --amber:#f3cc73;
+  --ice:#7fd4ec;
+  --moss:#85d0b4;
+  --danger:#ff9ca6;
+  --stage:#203845;
+  --rock:#405b68;
+  --ridge:#648491;
+  --crater:#132b36
+}
+* {box-sizing:border-box}body {margin:0 auto;padding:24px 28px 48px;max-width:1120px;background:var(--bg);color:var(--ash);font:15px/1.55 "Avenir Next",Avenir,"Segoe UI",sans-serif}button,input {font:inherit}button {cursor:pointer;min-height:48px;padding:10px 18px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ash);font-weight:600}button:disabled {cursor:not-allowed;opacity:.5}button:focus-visible,input:focus-visible {outline:3px solid var(--ice);outline-offset:3px}button:hover:enabled {border-color:var(--ice)}.mast {display:flex;align-items:center;gap:16px}h1,h2,h3,p {margin:0}h1 {font-size:25px;letter-spacing:-.6px}h2 {font-size:21px;letter-spacing:-.4px}h3 {font-size:17px}.brand p,.subtle {color:var(--dust);font-size:13px}.intro {margin:34px 0 22px;display:flex;justify-content:space-between;align-items:end;gap:20px}.intro h2 {font-size:32px}.intro p {color:var(--dust);max-width:65ch;margin-top:5px}.eyebrow {font-size:11px;letter-spacing:1.8px;font-weight:700;color:var(--dust);text-transform:uppercase}.session {padding:18px 20px;background:var(--panel);border:1px solid var(--line);border-radius:14px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}.session .description {flex:1;min-width:210px}.primary {background:var(--ash);color:var(--panel);border-color:var(--ash)}.danger {color:var(--danger);border-color:var(--danger)}#feedback {min-height:28px;margin:12px 0;color:var(--ice)}section {margin-top:26px}.section-head {display:flex;justify-content:space-between;align-items:baseline;gap:15px;margin-bottom:12px}.fixture-grid {display:grid;grid-template-columns:1fr 1fr;gap:16px}.fixture {background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px}.fixture-top {display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}.output {font-size:12px;font-weight:700;color:var(--dust)}.output.on {color:var(--moss)}.hold-button {width:100%;min-height:114px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:19px;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;background:var(--panel-2);border:1px solid var(--line)}.hold-button small {font-size:12px;font-weight:500}.hold-button[data-holding=true] {background:var(--magma);color:var(--panel);border-color:var(--magma);box-shadow:inset 0 0 0 3px var(--panel)}.co2 .hold-button[data-holding=true] {background:var(--ice)}.fixture p {font-size:13px;color:var(--dust);margin-top:12px}.readiness {min-height:22px;margin-top:8px;font-size:13px;color:var(--dust)}.lights {display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.light {padding:18px}.light button {width:100%;margin-top:14px}.light button[aria-pressed=true] {background:var(--panel-2);border-color:var(--moss)}.light label {display:flex;align-items:center;justify-content:space-between;color:var(--dust);font-size:13px}.light input {height:36px;width:48px;border:1px solid var(--line);border-radius:7px;background:var(--panel);padding:3px}.fog-controls {display:flex;gap:20px;align-items:center;flex-wrap:wrap}.fog-controls label {display:flex;gap:12px;align-items:center;flex:1;min-width:180px}.fog-controls input {flex:1;width:100%;accent-color:var(--ice)}footer {margin-top:30px;color:var(--dust);font-size:12px;border-top:1px solid var(--line);padding-top:16px}.status-dot {display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--moss);margin-right:6px}@media(max-width:700px) {body{padding:16px}.lights{grid-template-columns:1fr 1fr}.fixture-grid{grid-template-columns:1fr}.intro{align-items:start;flex-direction:column;gap:8px}.section-head{flex-wrap:wrap}.intro h2{font-size:28px}.fixture{padding:18px}.mast{gap:10px}h1{font-size:22px}.session button{flex:1}}

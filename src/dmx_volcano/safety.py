@@ -16,15 +16,15 @@ Invariants enforced here (see DESIGN.md "Safety invariants"):
 - The config pyro_enabled flag is a rehearsal interlock enforced here, not in
   the web layer: arm() refuses while it is off.
 
-CO2 limits per MOKA MK-C09 documentation: bursts <= 10s, >= 5s between.
-Flame limits are deliberately tighter still.
+Show activation limits: flame <= 3s, CO2 <= 4s.
+Minimum gaps remain 3s for flame and 5s for CO2.
 """
 
 import time
 from dataclasses import dataclass, field
 
 # Per-fixture operational limits, seconds.
-MAX_BURST = {"flame": 2.0, "co2": 10.0}
+MAX_BURST = {"flame": 3.0, "co2": 4.0}
 MIN_GAP = {"flame": 3.0, "co2": 5.0}
 
 
@@ -56,6 +56,11 @@ class SafetyGate:
     def disarm(self) -> None:
         self.pyro_enabled = False
         self._permits.clear()
+
+    def revoke_channels(self, channels: set[int]) -> None:
+        """Cancel output without shortening the reserved cooldown window."""
+        for permit in self._permits:
+            permit.channels.difference_update(channels)
 
     def gap_remaining(self, kind: str, now: float | None = None) -> float:
         """Seconds until the next burst of `kind` may be granted (0 = ready)."""

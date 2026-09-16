@@ -40,8 +40,7 @@ These are non-negotiable and reviewed against every change:
 4. **Restarts come back disarmed.** Re-arming is always a human act, never
    remembered state. The show engine (systemd) auto-starts into dormant with
    pyro disabled.
-5. **CO2 operational limits encoded in software:** bursts ≤10s (20s absolute
-   max), ≥5s between bursts, siphon/dip-tube tank required, 3m clearance in
+5. **CO2 operational limits encoded in software:** bursts ≤4s, ≥5s between bursts, siphon/dip-tube tank required, 3m clearance in
    spray direction.
 6. **DMX-loss behavior is bench-tested per fixture** (kill signal mid-effect,
    observe) before pyro ever runs on a show night. Not documented publicly for

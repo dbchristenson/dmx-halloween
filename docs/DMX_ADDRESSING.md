@@ -23,10 +23,14 @@ Consequences:
 
 | Fixture | Start address | Channels used | Set on device to |
 |---|---|---|---|
-| Flame (H-E01A) | 1 | 1 safety, 2 fire | `001` |
+| Flame (H-E01A) | 200 | 200 safety, 201 fire | `d200` |
 | CO2 cannon (MK-C09) | 10 | 10 jet | `010` |
 | Fogger (MK-F01) | 20 | 20–23 | `020` |
-| par1…par8 | 30, 37, 44, 51, 58, 65, 72, 79 | 4 each (dimmer,R,G,B) | `030` … `079` |
+| par1…par8 | 30, 40, 50, 60, 70, 80, 90, 100 | 4 each (dimmer,R,G,B) | `A030`, `A040`, `A050`, `A060`, `A070`, `A080`, `A090`, `A100` |
+
+PAR start addresses are spaced by 10 to make device setup easier. This show
+plan requires the flame machine at `d200`; the old bench setting `d100`
+overlaps PAR 8 and must not be used with this plan.
 
 Before any bench test, check each fixture's display/DIP setting against this
 table. A fixture at the wrong address doesn't "half work" — it silently

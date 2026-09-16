@@ -45,9 +45,9 @@ def test_rig_loads_and_flags_pyro():
     rig = load_rig(CONFIG)
     assert rig["flame"].pyro and rig["co2"].pyro
     assert not rig["fogger"].pyro
-    assert rig["flame"].channel("safety") == 1
-    assert rig["flame"].channel("fire") == 2
-    assert rig.pyro_channels() == {1, 2, 10}
+    assert rig["flame"].channel("safety") == 200
+    assert rig["flame"].channel("fire") == 201
+    assert rig.pyro_channels() == {200, 201, 10}
 
 
 def test_rig_addresses_do_not_overlap():

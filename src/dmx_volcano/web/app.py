@@ -51,6 +51,14 @@ class BurstRequest(BaseModel):
     duration: float
 
 
+class HoldBeginRequest(BaseModel):
+    kind: str
+
+
+class HoldTokenRequest(BaseModel):
+    token: str
+
+
 class SpeedRequest(BaseModel):
     speed: float
 
@@ -65,6 +73,10 @@ def create_app(state: ShowState) -> FastAPI:
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
         return INDEX_PATH.read_text()
+
+    @app.get("/remote-control", response_class=HTMLResponse)
+    def remote_control() -> str:
+        return (INDEX_PATH.parent / "remote-control.html").read_text()
 
     @app.get("/co2cal", response_class=HTMLResponse)
     def co2cal() -> str:
@@ -156,6 +168,8 @@ def create_app(state: ShowState) -> FastAPI:
 
     @app.post("/api/disarm")
     def disarm() -> dict:
+        if state.console:
+            state.console.cancel_holds()
         state.gate.disarm()
         state.log.write("operator", action="disarm")
         return {"ok": True, "armed": False}
@@ -234,6 +248,37 @@ def create_app(state: ShowState) -> FastAPI:
             "operator", action="test_burst", burst=req.kind, duration=req.duration
         )
         return {"ok": True, "queued": True}
+
+    @app.post("/api/remote/begin")
+    def remote_begin(req: HoldBeginRequest) -> dict:
+        if not state.console or not state.console.enabled:
+            return refuse("enable remote controls first")
+        if not state.gate.pyro_enabled:
+            return refuse("pyro is disarmed")
+        if state.machine.phase is not Phase.DORMANT or not state.machine.hold:
+            return refuse("remote controls require hold in dormant")
+        try:
+            token = state.console.begin_hold(req.kind)
+        except ValueError as e:
+            return refuse(str(e))
+        state.log.write("operator", action="remote_begin", fixture=req.kind)
+        return {"ok": True, "token": token}
+
+    @app.post("/api/remote/renew")
+    def remote_renew(req: HoldTokenRequest) -> dict:
+        if not state.console or not state.gate.pyro_enabled:
+            return refuse("remote controls unavailable or pyro disarmed")
+        try:
+            state.console.renew_hold(req.token)
+        except ValueError as e:
+            return refuse(str(e))
+        return {"ok": True}
+
+    @app.post("/api/remote/release")
+    def remote_release(req: HoldTokenRequest) -> dict:
+        if state.console:
+            state.console.end_hold(req.token)
+        return {"ok": True}
 
     @app.post("/api/sim/speed")
     def sim_speed(req: SpeedRequest) -> dict:

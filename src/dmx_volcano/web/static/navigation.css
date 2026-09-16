@@ -1,0 +1,9 @@
+.nav-trigger {display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;flex-shrink:0;border:1px solid var(--line,#d5e0e6);border-radius:12px;background:var(--panel,#fff);color:var(--ash,#203441);cursor:pointer;padding:12px}
+.nav-trigger svg {width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2}
+.mast {gap:16px}.mast > .brand {margin-right:auto}
+.app-drawer {position:fixed;inset:0 auto 0 0;margin:0;width:min(330px,88vw);height:100dvh;max-height:none;border:0;border-right:1px solid var(--line,#d5e0e6);padding:26px;background:var(--panel,#fff);color:var(--ash,#203441);box-shadow:16px 0 70px #0002}
+.app-drawer::backdrop {background:#10232c88;backdrop-filter:blur(3px)}
+.app-drawer .drawer-head {display:flex;align-items:center;justify-content:space-between;margin-bottom:40px;font-size:20px;font-weight:700}
+.app-drawer nav {display:grid;gap:8px}.app-drawer a {display:block;padding:14px 16px;border-radius:10px;color:inherit;text-decoration:none;font-weight:600}
+.app-drawer a:hover {background:var(--panel-2,#edf2f6)}.app-drawer a[aria-current=page] {background:var(--panel-2,#edf2f6);box-shadow:inset 3px 0 var(--magma,#c84416)}
+.app-drawer .drawer-note {margin-top:40px;color:var(--dust,#576c7b);font-size:13px}.nav-trigger:focus-visible,.app-drawer a:focus-visible {outline:3px solid var(--ice,#136c8d);outline-offset:3px}

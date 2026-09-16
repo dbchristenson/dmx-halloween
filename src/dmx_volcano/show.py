@@ -205,6 +205,7 @@ class ShowEngine:
         self.audio = LayeredPlayer(sounds) if sounds is not None else None
         self.universe = Universe()
         self.overlay = EffectOverlay()
+        self._remote_events: list[tuple[str, dict]] = []
         self.runner = CueRunner(timeline if timeline is not None else ERUPTION)
         self._prev_phase = machine.phase
         machine.on_transition = self._on_transition
@@ -260,6 +261,12 @@ class ShowEngine:
                     1.0, (now - self.machine.entered_at) / self.machine.config.imminent_duration
                 )
             render(phase, self.rig, self.universe, now, progress, self.looks)
+        if self.console is not None:
+            self.console.step_holds(
+                now, self.gate.pyro_enabled and self.machine.phase is Phase.DORMANT
+                and self.machine.hold,
+                self._start_remote_hold, self._stop_remote_hold, FLAME_ARM_LEAD,
+            )
         self.overlay.apply(self.universe, now)
         frame = bytearray(self.universe.as_bytes())
         self.gate.clamp(frame, now)
@@ -270,6 +277,7 @@ class ShowEngine:
             with self.state.lock:
                 self.state.latest_frame = wire
                 self.state.now = now
+        self._flush_remote_events()
         return wire
 
     def _execute(self, cue: Cue, now: float) -> None:
@@ -290,7 +298,9 @@ class ShowEngine:
 
         self.log.write("cue", t=cue.t, action=cue.action, granted=granted, **cue.params)
 
-    def _pyro_burst(self, kind: str, duration: float, now: float) -> bool:
+    def _pyro_burst(
+        self, kind: str, duration: float, now: float, *, track_co2: bool = True
+    ) -> bool:
         """The one path that puts pyro on the wire — used by eruption cues
         and manual test fires alike, always via a SafetyGate permit."""
         if kind == "co2":
@@ -298,7 +308,8 @@ class ShowEngine:
             granted = self.gate.request_burst("co2", {ch}, duration, now=now)
             if granted:
                 self.overlay.set(ch, 255, now + duration)
-                self._track_co2(duration)
+                if track_co2:
+                    self._track_co2(duration)
         else:
             safety_ch = self.rig["flame"].channel("safety")
             fire_ch = self.rig["flame"].channel("fire")
@@ -312,6 +323,50 @@ class ShowEngine:
                 self.overlay.set(safety_ch, FLAME_SAFETY_ARM_VALUE, until)
                 self.overlay.set(fire_ch, 255, until, since=fire_start)
         return granted
+
+    def _start_remote_hold(self, kind: str, duration: float, now: float) -> bool:
+        granted = self._pyro_burst(kind, duration, now, track_co2=False)
+        self._remote_events.append(("remote_hold_start", {"fixture": kind, "granted": granted}))
+        return granted
+
+    def _stop_remote_hold(self, kind: str, now: float, duration: float) -> None:
+        fixture = self.rig[kind]
+        channels = {fixture.channel(name) for name in fixture.channels}
+        self.gate.revoke_channels(channels)
+        for channel in channels:
+            self.overlay.set(channel, 0, now)
+            self.universe[channel] = 0
+
+        self._remote_events.append(("remote_hold_stop", {"fixture": kind, "elapsed": duration}))
+
+    def _flush_remote_events(self) -> None:
+        # Always called AFTER send_frame: disk writes must never delay release.
+        events, self._remote_events = self._remote_events, []
+        for event, data in events:
+            try:
+                if event == "remote_hold_stop" and data["fixture"] == "co2":
+                    if data["elapsed"] > 0:
+                        self._track_co2(data["elapsed"])
+                self.log.write(event, **data)
+            except OSError as error:
+                # Tank usage is updated in memory before persistence. Keep the
+                # frame loop alive if its state/log disk becomes unavailable.
+                print(f"WARNING: remote hold accounting/log write failed: {error}", flush=True)
+
+    def shutdown(self, now: float) -> None:
+        """Blackout first, then finalize holds and their accounting."""
+        self.universe.blackout()
+        self.driver.send_frame(self.universe.as_bytes())
+        self.gate.disarm()
+        if self.console is not None:
+            self.console.disable()
+            self.console.step_holds(
+                now, False, self._start_remote_hold, self._stop_remote_hold, FLAME_ARM_LEAD,
+            )
+        self._flush_remote_events()
+        self.driver.close()
+        self.stop_audio()
+        self.log.write("shutdown")
 
     def _track_co2(self, duration: float) -> None:
         if self.co2 is None:
@@ -439,11 +494,7 @@ def main() -> None:
             engine.step(clock.now() if clock else real_now)
             time.sleep(max(0.0, frame_interval - (time.monotonic() - real_now)))
     except KeyboardInterrupt:
-        engine.universe.blackout()
-        driver.send_frame(engine.universe.as_bytes())
-        driver.close()
-        engine.stop_audio()
-        engine.log.write("shutdown")
+        engine.shutdown(clock.now() if clock else time.monotonic())
 
 
 if __name__ == "__main__":

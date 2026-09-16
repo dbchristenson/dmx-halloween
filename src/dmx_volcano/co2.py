@@ -6,7 +6,7 @@ explicit tank reset (web UI or deleting the state file) does. When remaining
 capacity crosses the warn threshold, record_burst returns True exactly once
 per tank so the caller can fire the SMS alert without spamming.
 
-rate_kg_per_s must be MEASURED: weigh the tank, run a timed 10s burst, weigh
+rate_kg_per_s must be MEASURED: weigh the tank, run a timed 4s burst, weigh
 again. The config default is a placeholder.
 """
 

@@ -25,7 +25,7 @@ k = 2.0
 scale = 90.0
 
 # --- CO2 tank tracking --------------------------------------------------
-# rate_kg_per_s is a PLACEHOLDER: measure it (weigh tank, timed 10s burst,
+# rate_kg_per_s is a PLACEHOLDER: measure it (weigh tank, timed 4s burst,
 # weigh again) and update. Usage persists in state_file across restarts;
 # reset via the web UI when you swap tanks.
 
@@ -121,7 +121,7 @@ strobe_hz = 8.0
 
 # --- Eruption cue timeline ----------------------------------------------
 # t = seconds from eruption start. Pyro cues must respect the safety gate
-# (flame: <=2.0s bursts, >=3s gap; co2: <=10s bursts, >=5s gap) or they are
+# (flame: <=3.0s bursts, >=3s gap; co2: <=4s bursts, >=5s gap) or they are
 # DENIED. A flame cue opens the H-E01A safety channel at t and fires 0.5s
 # later (the machine ignores fire unless safety is already open), so the
 # flame is visible over [t+0.5, t+0.5+duration).
@@ -154,7 +154,7 @@ duration = 0.8
 # (DESIGN.md open items). Offsets are 0-based from the fixture's address.
 
 [fixtures.flame]
-address = 1
+address = 200
 channels = { safety = 0, fire = 1 }   # H-E01A: safety ch must hold 102-153 to arm
 pyro = true
 position = [0.0, 0.5]
@@ -177,36 +177,36 @@ channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [1.5, 1.5]
 
 [fixtures.par2]
-address = 37
+address = 40
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [-1.5, 1.5]
 
 [fixtures.par3]
-address = 44
+address = 50
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [1.5, -1.5]
 
 [fixtures.par4]
-address = 51
+address = 60
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [-1.5, -1.5]
 
 [fixtures.par5]
-address = 58
+address = 70
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [3.0, 0.0]
 
 [fixtures.par6]
-address = 65
+address = 80
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [-3.0, 0.0]
 
 [fixtures.par7]
-address = 72
+address = 90
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [0.0, 3.0]
 
 [fixtures.par8]
-address = 79
+address = 100
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [0.0, -3.0]
