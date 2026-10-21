@@ -88,16 +88,16 @@ duration = 0.5
 # set to. Read them off the device before every session.
 #
 #   device            display   address
-#   H-E01A flame      d100      100  (safety = 100, fire = 101)
+#   H-E01A flame      d200      200  (safety = 200, fire = 201)
 #   MK-C09 CO2        d010       10  (jet = 10)
 #   PAR "light 1"     A030       30  <- was A010: collided with the CO2 jet
 #   PAR "light 2"     A020       20
 #
 # The fogger is NOT on the bench chain; it keeps a config entry only because
-# the render path requires one. Parked at 200, far from anything real.
+# the render path requires one. Parked at 300, far from anything real.
 
 [fixtures.flame]
-address = 100
+address = 200
 channels = { safety = 0, fire = 1 }
 pyro = true
 position = [0.0, 0.5]
@@ -109,7 +109,7 @@ pyro = true
 position = [0.0, -0.5]
 
 [fixtures.fogger]
-address = 200            # placeholder: no fogger on the bench chain
+address = 300            # placeholder: no fogger on the bench chain
 channels = { fog = 0, red = 1, green = 2, blue = 3 }
 position = [0.0, 0.0]
 

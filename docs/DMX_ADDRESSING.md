@@ -23,15 +23,15 @@ Consequences:
 
 | Fixture | Start address | Channels used | Set on device to |
 |---|---|---|---|
-| Flame (H-E01A) | 100 | 100 safety, 101 fire | `d100` |
+| Flame (H-E01A) | 200 | 200 safety, 201 fire | `d200` |
 | CO2 cannon (MK-C09) | 10 | 10 jet | `d010` |
 | par2 ("light 2") | 20 | 20–23 (dimmer,R,G,B) | `A020` |
 | par1 ("light 1") | 30 | 30–33 | `A030` |
 | par3…par8 | 40, 50, 60, 70, 80, 90 | 4 each | `A040` … `A090` |
-| Fogger (MK-F01) | 200 | 200–203 | `d200` |
+| Fogger (MK-F01) | 300 | 300–303 | `d300` |
 
 These match the chain as physically wired (`config/bench.toml`), so the
-flame machine stays at `d100`. PARs are spaced by 10 so a 7-channel mode
+flame machine is at `d200`. PARs are spaced by 10 so a 7-channel mode
 still fits. `load_rig` refuses to start if two fixtures claim the same
 channel — that is how a PAR could otherwise drive the flame's fire channel
 without the SafetyGate knowing.

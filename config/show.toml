@@ -160,15 +160,15 @@ duration = 0.8
 # Loading refuses any config where two fixtures share a channel.
 #
 #   device            display   address
-#   H-E01A flame      d100      100  (safety = 100, fire = 101)
+#   H-E01A flame      d200      200  (safety = 200, fire = 201)
 #   MK-C09 CO2        d010       10  (jet = 10)
 #   PAR "light 2"     A020       20  (par2)
 #   PAR "light 1"     A030       30  (par1)
 #   par3..par8        A040..A090     (not yet on the chain — set on arrival)
-#   MK-F01 fogger     d200      200  (not yet on the chain — set on arrival)
+#   MK-F01 fogger     d300      300  (not yet on the chain — set on arrival)
 
 [fixtures.flame]
-address = 100
+address = 200
 channels = { safety = 0, fire = 1 }   # H-E01A: safety ch must hold 102-153 to arm
 pyro = true
 position = [0.0, 0.5]
@@ -180,7 +180,7 @@ pyro = true
 position = [0.0, -0.5]
 
 [fixtures.fogger]
-address = 200
+address = 300
 channels = { fog = 0, red = 1, green = 2, blue = 3 }  # MK-F01: confirm, likely 8ch
 position = [0.0, 0.0]
 
