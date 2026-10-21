@@ -525,6 +525,11 @@ def main() -> None:
     # and re-enable SIGINT even if inherited as ignored (background shells set
     # SIG_IGN, which Python would otherwise silently keep).
     def _shutdown_signal(signum, frame):
+        # One stop request is enough. systemd signals the whole cgroup AND uv
+        # forwards its copy, so a second SIGTERM lands mid-shutdown and used
+        # to abort it before the blackout frame went out. Ignore the rest.
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         raise KeyboardInterrupt
 
     signal.signal(signal.SIGTERM, _shutdown_signal)
