@@ -1,8 +1,8 @@
 """Universe, stats, fixtures, and the Enttec wire format (against a fake port)."""
 
+import random
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from dmx_volcano.driver.universe import Universe
@@ -34,7 +34,7 @@ def test_universe_blackout():
 
 def test_dwell_samples_respect_bounds():
     cfg = DwellConfig(t_min=30, t_max=120, k=2.0, scale=60)
-    rng = np.random.default_rng(1)
+    rng = random.Random(1)
     samples = [sample_dwell(cfg, rng) for _ in range(2000)]
     assert min(samples) >= cfg.t_min
     assert max(samples) <= cfg.t_max
@@ -45,9 +45,32 @@ def test_rig_loads_and_flags_pyro():
     rig = load_rig(CONFIG)
     assert rig["flame"].pyro and rig["co2"].pyro
     assert not rig["fogger"].pyro
-    assert rig["flame"].channel("safety") == 200
-    assert rig["flame"].channel("fire") == 201
-    assert rig.pyro_channels() == {200, 201, 10}
+    assert rig["flame"].channel("safety") == 100
+    assert rig["flame"].channel("fire") == 101
+    assert rig.pyro_channels() == {100, 101, 10}
+
+
+@pytest.mark.parametrize("config", ["show.toml", "bench.toml"])
+def test_shipped_configs_have_no_channel_overlaps(config):
+    load_rig(CONFIG.parent / config)  # raises on any shared channel
+
+
+def test_overlapping_fixtures_are_refused(tmp_path):
+    # The 2026 show.toml bug: par8 at 100 sat on the flame's safety/fire.
+    cfg = tmp_path / "rig.toml"
+    cfg.write_text(
+        '[fixtures.flame]\naddress = 100\nchannels = { safety = 0, fire = 1 }\npyro = true\n'
+        '[fixtures.par8]\naddress = 100\nchannels = { dimmer = 0, red = 1 }\n'
+    )
+    with pytest.raises(ValueError, match="channel 100"):
+        load_rig(cfg)
+
+
+def test_channel_past_512_is_refused(tmp_path):
+    cfg = tmp_path / "rig.toml"
+    cfg.write_text('[fixtures.par]\naddress = 511\nchannels = { dimmer = 0, red = 1, blue = 2 }\n')
+    with pytest.raises(ValueError, match="outside 1-512"):
+        load_rig(cfg)
 
 
 def test_rig_addresses_do_not_overlap():

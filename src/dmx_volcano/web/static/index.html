@@ -1129,9 +1129,12 @@ $("triggerBtn").onclick = () => post("/api/trigger");
 $("holdBtn").onclick = () => post("/api/hold", { on: !state.hold });
 $("pauseBtn").onclick = () => post("/api/pause", { on: !(state.paused || state.pause_pending) });
 $("armBtn").onclick = () => {
-    if (!state.armed && !confirm("Arm pyro?\n\nPhysical switch must already be on. Confirm operators are in position and the spray path is clear."))
+    if (state.armed)
+        return post("/api/disarm");  // never PIN-gated: making safe is always one tap
+    const pin = prompt("Arm pyro?\n\nPhysical switch must already be on. Confirm operators are in position and the spray path is clear.\n\nEnter the arm PIN:");
+    if (pin === null)
         return;
-    post(state.armed ? "/api/disarm" : "/api/arm");
+    post("/api/arm", { pin });
 };
 $("testBtn").onclick = () => post("/api/test/enable", { on: !(state.test && state.test.enabled) });
 $("fogRange").oninput = () => {

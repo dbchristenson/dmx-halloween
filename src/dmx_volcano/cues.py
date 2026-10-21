@@ -8,6 +8,8 @@ and, for pyro, into safety-gate burst requests that may be denied.
 
 from dataclasses import dataclass, field
 
+from .safety import MAX_BURST
+
 
 @dataclass(frozen=True)
 class Cue:
@@ -27,6 +29,38 @@ def load_timeline(entries: list[dict]) -> list[Cue]:
         )
         for e in entries
     ]
+
+
+# action -> (required param, burst kind or None)
+ACTIONS = {
+    "sound": ("file", None),
+    "fog": ("level", None),
+    "co2_burst": ("duration", "co2"),
+    "flame_burst": ("duration", "flame"),
+    "pars": (None, None),
+    "fade": (None, None),
+}
+
+
+def validate_timeline(timeline: list[Cue]) -> None:
+    """Fail at startup on anything the show loop would trip over mid-eruption.
+
+    The gate checks arming before burst length, so an overlong pyro cue only
+    raises once armed — every rehearsal passes and the first armed night
+    crashes. Check it here instead, armed or not."""
+    for cue in timeline:
+        where = f"cue at t={cue.t} ({cue.action})"
+        if cue.action not in ACTIONS:
+            raise ValueError(f"{where}: unknown action (known: {', '.join(ACTIONS)})")
+        if cue.t < 0:
+            raise ValueError(f"{where}: t must be >= 0")
+        param, kind = ACTIONS[cue.action]
+        if param is not None and param not in cue.params:
+            raise ValueError(f"{where}: missing {param!r}")
+        if kind is not None and not 0 < cue.params["duration"] <= MAX_BURST[kind]:
+            raise ValueError(f"{where}: duration must be 0-{MAX_BURST[kind]}s")
+        if cue.action == "fog" and not 0 <= cue.params["level"] <= 255:
+            raise ValueError(f"{where}: level must be 0-255")
 
 
 # Fallback timeline if config has no [[cues.eruption]] — tune in config, not

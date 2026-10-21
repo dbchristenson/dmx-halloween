@@ -23,14 +23,18 @@ Consequences:
 
 | Fixture | Start address | Channels used | Set on device to |
 |---|---|---|---|
-| Flame (H-E01A) | 200 | 200 safety, 201 fire | `d200` |
-| CO2 cannon (MK-C09) | 10 | 10 jet | `010` |
-| Fogger (MK-F01) | 20 | 20–23 | `020` |
-| par1…par8 | 30, 40, 50, 60, 70, 80, 90, 100 | 4 each (dimmer,R,G,B) | `A030`, `A040`, `A050`, `A060`, `A070`, `A080`, `A090`, `A100` |
+| Flame (H-E01A) | 100 | 100 safety, 101 fire | `d100` |
+| CO2 cannon (MK-C09) | 10 | 10 jet | `d010` |
+| par2 ("light 2") | 20 | 20–23 (dimmer,R,G,B) | `A020` |
+| par1 ("light 1") | 30 | 30–33 | `A030` |
+| par3…par8 | 40, 50, 60, 70, 80, 90 | 4 each | `A040` … `A090` |
+| Fogger (MK-F01) | 200 | 200–203 | `d200` |
 
-PAR start addresses are spaced by 10 to make device setup easier. This show
-plan requires the flame machine at `d200`; the old bench setting `d100`
-overlaps PAR 8 and must not be used with this plan.
+These match the chain as physically wired (`config/bench.toml`), so the
+flame machine stays at `d100`. PARs are spaced by 10 so a 7-channel mode
+still fits. `load_rig` refuses to start if two fixtures claim the same
+channel — that is how a PAR could otherwise drive the flame's fire channel
+without the SafetyGate knowing.
 
 Before any bench test, check each fixture's display/DIP setting against this
 table. A fixture at the wrong address doesn't "half work" — it silently
@@ -62,7 +66,7 @@ See `config/bench.toml` (short phases, 0.5s CO2 pops, nothing transitions on
 its own). Run on the Pi:
 
 ```sh
-uv run dmx-volcano --real /dev/enttec --config config/bench.toml
+uv run --env-file .env dmx-volcano --real /dev/enttec --config config/bench.toml
 ```
 
 then from the control page (or `curl`): test mode → PAR toggles/colors →

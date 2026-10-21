@@ -24,5 +24,10 @@ class EventLog:
             "kind": kind,
             **data,
         }
-        with open(self._path, "a") as f:
-            f.write(json.dumps(record) + "\n")
+        try:
+            with open(self._path, "a") as f:
+                f.write(json.dumps(record) + "\n")
+        except OSError as error:
+            # The log is for post-season analysis; a full or failing SD card
+            # must never take down the frame loop that is writing it.
+            print(f"WARNING: event log write failed ({kind}): {error}", flush=True)

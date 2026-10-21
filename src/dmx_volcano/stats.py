@@ -6,10 +6,8 @@ process: that would be memoryless. Parameters come from config so timing can
 be retuned night-to-night without a deploy.
 """
 
+import random
 from dataclasses import dataclass
-
-import numpy as np
-from scipy.stats import weibull_min
 
 
 @dataclass(frozen=True)
@@ -20,6 +18,6 @@ class DwellConfig:
     scale: float  # Weibull scale (lambda), seconds
 
 
-def sample_dwell(cfg: DwellConfig, rng: np.random.Generator) -> float:
-    t = weibull_min.rvs(cfg.k, scale=cfg.scale, random_state=rng)
-    return float(np.clip(t, cfg.t_min, cfg.t_max))
+def sample_dwell(cfg: DwellConfig, rng: random.Random) -> float:
+    t = rng.weibullvariate(cfg.scale, cfg.k)  # (alpha=scale, beta=shape)
+    return min(max(t, cfg.t_min), cfg.t_max)

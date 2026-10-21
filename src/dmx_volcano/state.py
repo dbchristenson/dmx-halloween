@@ -28,6 +28,7 @@ class ShowState:
     console: TestConsole | None = None
     sounds: SoundBank | None = None
     clock: Any = None  # SimClock in sim mode, None on the real wire
+    arm_pin: str | None = None  # DMX_ARM_PIN; None = arming refused
     lock: threading.Lock = field(default_factory=threading.Lock)
     latest_frame: bytes = bytes(512)
     now: float = 0.0

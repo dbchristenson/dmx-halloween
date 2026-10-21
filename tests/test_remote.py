@@ -140,7 +140,8 @@ def test_hold_excludes_other_clients_and_legacy_bursts(engine):
 
 
 def test_remote_api_interlocks_and_disarm_invalidate_tokens(engine):
-    from dmx_volcano.web.app import create_app, HoldBeginRequest, HoldTokenRequest
+    from dmx_volcano.web.app import ArmRequest, create_app, HoldBeginRequest, HoldTokenRequest
+    engine.state.arm_pin = '4242'
     app = create_app(engine.state)
     routes = {route.path: route.endpoint for route in app.routes if hasattr(route, 'endpoint')}
     begin = routes['/api/remote/begin']
@@ -156,7 +157,7 @@ def test_remote_api_interlocks_and_disarm_invalidate_tokens(engine):
     engine.step(0)
     assert channels(engine, engine.step(.6)) == [255, 130]
     routes['/api/disarm']()
-    routes['/api/arm']()  # even rearming before the next frame must not revive it
+    assert routes['/api/arm'](ArmRequest(pin='4242'))['ok']  # even rearming before the next frame must not revive it
     assert renew(token)['ok'] is False
     assert channels(engine, engine.step(.625)) == [0, 0]
     assert routes['/api/remote/release'](token)['ok'] is True
@@ -204,3 +205,40 @@ def test_shutdown_blackouts_before_final_hold_accounting(engine, monkeypatch):
     assert engine.co2.used_kg == pytest.approx(.25 * engine.co2.rate_kg_per_s)
     assert not engine.gate.pyro_enabled
     assert not engine.console.enabled
+
+
+def arm_routes(engine, pin):
+    from dmx_volcano.web.app import ArmRequest, create_app
+    engine.state.arm_pin = pin
+    routes = {r.path: r.endpoint for r in create_app(engine.state).routes if hasattr(r, 'endpoint')}
+    return (lambda p: routes['/api/arm'](ArmRequest(pin=p))), routes['/api/disarm']
+
+
+def test_arm_requires_the_pin_but_disarm_never_does(engine):
+    arm, disarm = arm_routes(engine, '4242')
+    assert arm('')['ok'] is False
+    assert arm('0000')['reason'] == 'wrong PIN'
+    assert not engine.gate.pyro_enabled
+    assert arm('4242')['ok'] is True
+    assert engine.gate.pyro_enabled
+    assert disarm()['ok'] is True  # no PIN: anyone can always make it safe
+    assert not engine.gate.pyro_enabled
+
+
+def test_arming_is_refused_when_no_pin_is_configured(engine):
+    arm, _ = arm_routes(engine, None)
+    assert 'DMX_ARM_PIN' in arm('')['reason']
+    assert not engine.gate.pyro_enabled
+
+
+def test_repeated_wrong_pins_lock_out_even_the_right_one(engine, monkeypatch):
+    from dmx_volcano.web import app as web
+    clock = [1000.0]
+    monkeypatch.setattr(web.time, 'monotonic', lambda: clock[0])
+    arm, _ = arm_routes(engine, '4242')
+    for guess in range(web.MAX_PIN_FAILURES):
+        assert arm(f'{guess:04d}')['ok'] is False
+    assert 'locked' in arm('4242')['reason']
+    assert not engine.gate.pyro_enabled
+    clock[0] += web.PIN_LOCKOUT_S
+    assert arm('4242')['ok'] is True

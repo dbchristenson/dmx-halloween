@@ -388,7 +388,12 @@ $("startBtn").onclick = async () => {
         $("setupMsg").textContent = test.reason;
         return;
     }
-    const arm = await post("/api/arm");
+    const pin = prompt("Enter the arm PIN:");
+    if (pin === null) {
+        await post("/api/test/enable", { on: false });
+        return;
+    }
+    const arm = await post("/api/arm", { pin });
     if (!arm.ok) {
         $("setupMsg").textContent = arm.reason;
         return;

@@ -72,3 +72,21 @@ def test_sms_config_env_overrides_toml(monkeypatch):
     assert cfg.auth_token == "t"  # falls back to toml where env unset
     assert cfg.numbers == ["+15555550100", "+15555550101"]
     assert cfg.configured
+
+
+@pytest.mark.parametrize("junk", ['{"used_kg": 3.', "", "[1, 2]", '{"used_kg": "x"}'])
+def test_corrupt_state_file_does_not_crash_startup(tmp_path, junk):
+    # Truncated JSON is what a power cut mid-write used to leave behind, and
+    # it crash-looped the service on every restart.
+    path = tmp_path / "co2.json"
+    path.write_text(junk)
+    tracker = CO2Tracker(capacity_kg=10.0, rate_kg_per_s=0.5, state_path=path)
+    assert tracker.used_kg == 0.0
+    assert not path.exists() and path.with_suffix(".corrupt").exists()
+    tracker.record_burst(2.0)  # and it saves cleanly afterwards
+    assert CO2Tracker(capacity_kg=10.0, rate_kg_per_s=0.5, state_path=path).used_kg == 1.0
+
+
+def test_save_leaves_no_temp_file(tracker):
+    tracker.record_burst(1.0)
+    assert [p.name for p in tracker.state_path.parent.iterdir()] == ["co2.json"]

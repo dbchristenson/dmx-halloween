@@ -1,4 +1,5 @@
-import numpy as np
+import random
+
 import pytest
 
 from dmx_volcano.phases import Phase, PhaseConfig, PhaseMachine, Transition
@@ -23,7 +24,7 @@ def make_machine(p_erupt: float, seed: int = 0) -> tuple[PhaseMachine, list[Tran
             eruption_duration=ERUPTION_S,
             cooldown=COOLDOWN_S,
         ),
-        rng=np.random.default_rng(seed),
+        rng=random.Random(seed),
         on_transition=events.append,
     )
     machine.start(0.0)

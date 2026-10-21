@@ -152,3 +152,56 @@ def test_imminent_look_is_distinct_from_active(engine):
     assert max(values) >= 240, "heartbeat should peak near full"
     # Breathing phases (dormant look: dimmer 60-100) never leave that band.
     assert sum(1 for v in values if v < 30) > len(values) * 0.3
+
+
+def test_overlong_pyro_cue_refused_at_startup_even_in_rehearsal(tmp_path, monkeypatch):
+    # The gate only checks burst length once armed, so without startup
+    # validation this config would pass every rehearsal and crash armed.
+    monkeypatch.chdir(tmp_path)
+    cfg = tmp_path / "show.toml"
+    cfg.write_text(
+        CONFIG.read_text().replace("duration = 0.8", "duration = 3.5", 1)
+    )
+    with pytest.raises(ValueError, match="duration must be"):
+        build_engine(cfg, FakeDriver())
+
+
+@pytest.mark.parametrize(
+    "cue",
+    [
+        {"t": 1.0, "action": "flame"},  # unknown action
+        {"t": 1.0, "action": "co2_burst"},  # missing duration
+        {"t": 1.0, "action": "fog", "level": 300},
+        {"t": -1.0, "action": "pars"},
+    ],
+)
+def test_malformed_cues_are_refused(cue):
+    from dmx_volcano.cues import load_timeline, validate_timeline
+
+    with pytest.raises(ValueError):
+        validate_timeline(load_timeline([cue]))
+
+
+def test_shutdown_still_disarms_when_the_driver_is_dead(engine):
+    class DeadDriver(FakeDriver):
+        def send_frame(self, universe):
+            raise OSError("USB gone")
+
+        def close(self):
+            raise OSError("USB gone")
+
+    engine.gate.arm()
+    engine.driver = DeadDriver()
+    engine.shutdown(0.0)  # must not raise
+    assert not engine.gate.pyro_enabled
+
+
+def test_shutdown_blacks_out_the_wire(engine):
+    engine.gate.arm()
+    engine.machine.request_eruption()
+    t = 0.0
+    while engine.machine.phase is not Phase.ERUPTION:
+        t += DT
+        engine.step(t)
+    engine.shutdown(t)
+    assert engine.driver.last_frame == bytes(512)

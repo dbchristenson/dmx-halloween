@@ -99,7 +99,10 @@ $('enable').onclick = () => {
   const on = !state?.test?.enabled;
   action('/api/test/enable', {on}, on ? 'Remote controls enabled. Show held dormant.' : 'Controls disabled. Show remains held dormant.');
 };
-$('arm').onclick = () => action('/api/arm', {}, 'Pyro armed. Hold a fixture button to activate.');
+$('arm').onclick = () => {
+  const pin = prompt('Enter the arm PIN:');
+  if (pin !== null) action('/api/arm', {pin}, 'Pyro armed. Hold a fixture button to activate.');
+};
 $('disarm').onclick = () => {releaseAll();action('/api/disarm', {}, 'Pyro disarmed.');};
 $('fog').oninput = () => { $('fogValue').textContent = `${Math.round(Number($('fog').value) / 255 * 100)}%`; };
 $('fog').onchange = () => action('/api/test/fog', {level:Number($('fog').value)}, 'Fog level updated.');

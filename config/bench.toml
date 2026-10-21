@@ -1,6 +1,7 @@
 # BENCH-TEST profile — supervised hardware checks ONLY. Never the show config.
 #
-#   uv run dmx-volcano --real /dev/enttec --config config/bench.toml
+#   uv run --env-file .env dmx-volcano --real /dev/enttec --config config/bench.toml
+#   (--env-file loads DMX_ARM_PIN; without it the page refuses to arm)
 #
 # Differences from show.toml, all in the direction of short + minimal:
 #   - pyro_enabled = true so CO2 test bursts can be armed (invariant 3 is

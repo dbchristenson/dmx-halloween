@@ -13,17 +13,18 @@ lives in config/show.toml — see docs/SHOW_AUTHORING.md.
 """
 
 import argparse
+import math
+import os
+import random
 import signal
 import threading
 import time
 import tomllib
 from pathlib import Path
 
-import numpy as np
-
 from .audio import LayeredPlayer, SoundBank, play
 from .co2 import CO2Tracker
-from .cues import ERUPTION, Cue, CueRunner, load_timeline
+from .cues import ERUPTION, Cue, CueRunner, load_timeline, validate_timeline
 from .driver.fake import FakeDriver
 from .driver.universe import Universe
 from .events import EventLog
@@ -151,12 +152,12 @@ def render(
         f0, f1 = look["beat_hz"]
         duration = look.get("duration", 30.0)  # injected from imminent_duration
         # Linear chirp accelerating f0 -> f1: angle(t) = 2pi*(f0*t + (f1-f0)*t^2/2D)
-        angle = 2 * np.pi * duration * (f0 * progress + (f1 - f0) * progress**2 / 2)
-        level = max(0.0, np.sin(angle)) ** 6  # sharp beats, dark gaps
+        angle = 2 * math.pi * duration * (f0 * progress + (f1 - f0) * progress**2 / 2)
+        level = max(0.0, math.sin(angle)) ** 6  # sharp beats, dark gaps
     elif phase is Phase.ERUPTION:
         level = 1.0 if int(now * look["strobe_hz"]) % 2 else 0.15
     else:
-        level = 0.5 + 0.5 * np.sin(now * 2 * np.pi * look["pulse_hz"])
+        level = 0.5 + 0.5 * math.sin(now * 2 * math.pi * look["pulse_hz"])
 
     dimmer = int(lo + (hi - lo) * level)
     for name, fixture in rig.fixtures.items():
@@ -343,20 +344,23 @@ class ShowEngine:
         # Always called AFTER send_frame: disk writes must never delay release.
         events, self._remote_events = self._remote_events, []
         for event, data in events:
-            try:
-                if event == "remote_hold_stop" and data["fixture"] == "co2":
-                    if data["elapsed"] > 0:
-                        self._track_co2(data["elapsed"])
-                self.log.write(event, **data)
-            except OSError as error:
-                # Tank usage is updated in memory before persistence. Keep the
-                # frame loop alive if its state/log disk becomes unavailable.
-                print(f"WARNING: remote hold accounting/log write failed: {error}", flush=True)
+            if event == "remote_hold_stop" and data["fixture"] == "co2":
+                if data["elapsed"] > 0:
+                    self._track_co2(data["elapsed"])
+            self.log.write(event, **data)
 
     def shutdown(self, now: float) -> None:
-        """Blackout first, then finalize holds and their accounting."""
+        """Blackout first, then finalize holds and their accounting.
+
+        Runs on EVERY exit, crashes included: the Enttec keeps repeating the
+        last frame it was sent, so a dead process must not leave pyro
+        channels high on the wire. If the driver itself is what failed, the
+        blackout can't go out — carry on so the rest still tidies up."""
         self.universe.blackout()
-        self.driver.send_frame(self.universe.as_bytes())
+        try:
+            self.driver.send_frame(self.universe.as_bytes())
+        except Exception as error:
+            print(f"ERROR: shutdown blackout frame failed: {error!r}", flush=True)
         self.gate.disarm()
         if self.console is not None:
             self.console.disable()
@@ -364,14 +368,24 @@ class ShowEngine:
                 now, False, self._start_remote_hold, self._stop_remote_hold, FLAME_ARM_LEAD,
             )
         self._flush_remote_events()
-        self.driver.close()
+        try:
+            self.driver.close()
+        except Exception as error:
+            print(f"ERROR: driver close failed: {error!r}", flush=True)
         self.stop_audio()
         self.log.write("shutdown")
 
     def _track_co2(self, duration: float) -> None:
         if self.co2 is None:
             return
-        if self.co2.record_burst(duration):
+        try:
+            crossed = self.co2.record_burst(duration)
+        except OSError as error:
+            # Usage is already counted in memory; only persistence failed.
+            # A full/failed SD card must not take down the frame loop.
+            print(f"WARNING: CO2 tank state write failed: {error}", flush=True)
+            return
+        if crossed:
             message = (
                 f"VOLCANO: CO2 tank low — {self.co2.remaining_kg:.1f}kg "
                 f"({self.co2.remaining_fraction:.0%}) remaining. Swap the tank "
@@ -381,6 +395,33 @@ class ShowEngine:
                 "alert", alert="co2_low", remaining_kg=self.co2.remaining_kg
             )
             send_sms_async(self.sms, message)
+
+
+WEB_RETRY_S = 5.0
+
+
+def serve_web(app, port: int, log: EventLog) -> None:
+    """Run the control page forever, restarting it whenever uvicorn exits.
+
+    uvicorn's run() returns (or raises SystemExit — e.g. port already in use)
+    and its thread simply ends; the show would keep running with no page to
+    disarm from. So loop: a fresh Server each attempt, a short pause between.
+    Network drops don't need this — the socket stays bound to 0.0.0.0 and
+    serves again when WiFi comes back."""
+    import uvicorn
+
+    while True:
+        server = uvicorn.Server(
+            uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning")
+        )
+        try:
+            server.run()
+            reason = "server exited"
+        except BaseException as error:  # SystemExit is how uvicorn reports bind failure
+            reason = repr(error)
+        log.write("web_down", reason=reason, retry_in=WEB_RETRY_S)
+        print(f"WARNING: control page down ({reason}); retrying in {WEB_RETRY_S:.0f}s", flush=True)
+        time.sleep(WEB_RETRY_S)
 
 
 def build_engine(
@@ -397,7 +438,7 @@ def build_engine(
     )
     console = TestConsole(pyro_channels=rig.pyro_channels())
     log = EventLog(Path(raw["show"]["log_dir"]))
-    machine = PhaseMachine(config=build_phase_config(raw), rng=np.random.default_rng())
+    machine = PhaseMachine(config=build_phase_config(raw), rng=random.Random())
 
     co2_cfg = raw.get("co2")
     co2 = (
@@ -412,7 +453,8 @@ def build_engine(
     )
 
     timeline_cfg = raw.get("cues", {}).get("eruption")
-    timeline = load_timeline(timeline_cfg) if timeline_cfg else None
+    timeline = load_timeline(timeline_cfg) if timeline_cfg else ERUPTION
+    validate_timeline(timeline)
 
     sounds = SoundBank.from_config(raw.get("audio", {}), ASSETS_DIR)
     missing = sounds.missing_files()
@@ -428,6 +470,9 @@ def build_engine(
         ShowState(
             rig=rig, gate=gate, machine=machine, log=log, co2=co2,
             console=console, sounds=sounds,
+            # From the environment (.env via systemd), never config: the
+            # repo is public. Unset means the web page cannot arm at all.
+            arm_pin=os.environ.get("DMX_ARM_PIN") or None,
         )
         if with_state
         else None
@@ -456,6 +501,10 @@ def main() -> None:
         from .driver.enttec import EnttecPro
 
         driver = EnttecPro(args.real)
+        # Blank the wire before anything else can fail: after a SIGKILL/OOM
+        # the widget is still repeating the dead process's last frame, and a
+        # bad config below would otherwise exit without ever replacing it.
+        driver.send_frame(bytes(512))
     else:
         driver = FakeDriver()
 
@@ -466,16 +515,11 @@ def main() -> None:
     engine.log.write("startup", mode="real" if args.real else "sim", armed=False)
 
     if not args.no_web:
-        import uvicorn
-
         from .web.app import create_app
 
-        server = uvicorn.Server(
-            uvicorn.Config(
-                create_app(state), host="0.0.0.0", port=args.port, log_level="warning"
-            )
-        )
-        threading.Thread(target=server.run, daemon=True).start()
+        threading.Thread(
+            target=serve_web, args=(create_app(state), args.port, engine.log), daemon=True
+        ).start()
 
     # Route SIGTERM (systemd stop) through the same blackout path as Ctrl-C,
     # and re-enable SIGINT even if inherited as ignored (background shells set
@@ -494,6 +538,10 @@ def main() -> None:
             engine.step(clock.now() if clock else real_now)
             time.sleep(max(0.0, frame_interval - (time.monotonic() - real_now)))
     except KeyboardInterrupt:
+        pass
+    finally:
+        # Any other exception still blacks out here, then propagates so the
+        # traceback reaches the journal and systemd restarts us disarmed.
         engine.shutdown(clock.now() if clock else time.monotonic())
 
 

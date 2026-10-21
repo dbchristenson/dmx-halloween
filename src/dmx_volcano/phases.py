@@ -19,11 +19,10 @@ actual elapsed and the trigger cause — the raw material for night-to-night
 retuning.
 """
 
+import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-
-import numpy as np
 
 from .stats import DwellConfig, sample_dwell
 
@@ -56,7 +55,7 @@ class Transition:
 @dataclass
 class PhaseMachine:
     config: PhaseConfig
-    rng: np.random.Generator
+    rng: random.Random
     on_transition: Callable[[Transition], None] = lambda t: None
 
     phase: Phase = Phase.DORMANT

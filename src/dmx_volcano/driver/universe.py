@@ -27,8 +27,7 @@ class Universe:
         return channel - 1
 
     def blackout(self) -> None:
-        for i in range(DMX_CHANNELS):
-            self._data[i] = 0
+        self._data[:] = bytes(DMX_CHANNELS)
 
     def as_bytes(self) -> bytes:
         return bytes(self._data)

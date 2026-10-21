@@ -15,11 +15,15 @@ Invariants enforced here (see DESIGN.md "Safety invariants"):
 - Disarming (or restart — arming state is never persisted) drops all permits.
 - The config pyro_enabled flag is a rehearsal interlock enforced here, not in
   the web layer: arm() refuses while it is off.
+- Thread-safe: the web thread arms/disarms while the frame loop requests and
+  clamps. One lock serializes them, so a disarm can never be undone by a
+  clamp() that was mid-way through rebuilding the permit list.
 
 Show activation limits: flame <= 3s, CO2 <= 4s.
 Minimum gaps remain 3s for flame and 5s for CO2.
 """
 
+import threading
 import time
 from dataclasses import dataclass, field
 
@@ -45,27 +49,32 @@ class SafetyGate:
     pyro_enabled: bool = False  # the software arm switch; always starts False
     _permits: list[Permit] = field(default_factory=list)
     _last_burst_end: dict[str, float] = field(default_factory=dict)
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def arm(self) -> bool:
         """The web half of two-step arming. Refused in rehearsal mode."""
         if not self.enabled_by_config:
             return False
-        self.pyro_enabled = True
+        with self._lock:
+            self.pyro_enabled = True
         return True
 
     def disarm(self) -> None:
-        self.pyro_enabled = False
-        self._permits.clear()
+        with self._lock:
+            self.pyro_enabled = False
+            self._permits.clear()
 
     def revoke_channels(self, channels: set[int]) -> None:
         """Cancel output without shortening the reserved cooldown window."""
-        for permit in self._permits:
-            permit.channels.difference_update(channels)
+        with self._lock:
+            for permit in self._permits:
+                permit.channels.difference_update(channels)
 
     def gap_remaining(self, kind: str, now: float | None = None) -> float:
         """Seconds until the next burst of `kind` may be granted (0 = ready)."""
         now = time.monotonic() if now is None else now
-        last_end = self._last_burst_end.get(kind, float("-inf"))
+        with self._lock:
+            last_end = self._last_burst_end.get(kind, float("-inf"))
         return max(0.0, last_end + MIN_GAP[kind] - now)
 
     def request_burst(
@@ -85,6 +94,20 @@ class SafetyGate:
         same end. `duration` is the trigger time and is what MAX_BURST bounds;
         the lead only ever adds arm-channel time, never fire time."""
         now = time.monotonic() if now is None else now
+        with self._lock:
+            return self._request_burst_locked(
+                kind, channels, duration, now, arm_channels, arm_lead
+            )
+
+    def _request_burst_locked(
+        self,
+        kind: str,
+        channels: set[int],
+        duration: float,
+        now: float,
+        arm_channels: set[int],
+        arm_lead: float,
+    ) -> bool:
         if not self.pyro_enabled:
             return False
         if duration > MAX_BURST[kind]:
@@ -111,11 +134,12 @@ class SafetyGate:
         """Zero every pyro channel not covered by a live permit. Mutates frame
         in place; called on every frame of the 40Hz loop, 1-indexed channels."""
         now = time.monotonic() if now is None else now
-        self._permits = [p for p in self._permits if p.expires_at > now]
-        permitted: set[int] = set()
-        if self.pyro_enabled:
-            for permit in self._permits:
-                if permit.starts_at <= now:
-                    permitted |= permit.channels
+        with self._lock:
+            self._permits = [p for p in self._permits if p.expires_at > now]
+            permitted: set[int] = set()
+            if self.pyro_enabled:
+                for permit in self._permits:
+                    if permit.starts_at <= now:
+                        permitted |= permit.channels
         for channel in self.pyro_channels - permitted:
             frame[channel - 1] = 0

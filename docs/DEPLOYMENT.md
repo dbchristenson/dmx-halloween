@@ -63,10 +63,12 @@ already proven on the target OS and architecture.
    sudo usermod -aG dialout,audio dbchristenson
    # replug the Enttec, then verify: ls -l /dev/enttec
    ```
-5. **Secrets** (only if SMS alerts wanted):
+5. **Secrets** (the arm PIN is required; Twilio only if SMS alerts wanted):
    ```sh
-   cp deploy/env.example .env && chmod 600 .env   # then fill in Twilio creds
+   cp deploy/env.example .env && chmod 600 .env   # set DMX_ARM_PIN, Twilio creds
    ```
+   Without `DMX_ARM_PIN` the control page refuses to arm. Disarm never
+   asks for it.
 6. **Service**:
    ```sh
    sudo cp deploy/dmx-volcano.service /etc/systemd/system/

@@ -5,11 +5,15 @@ under the lock and submits *requests* (trigger/arm/hold/pause/test) that the
 show loop and SafetyGate adjudicate. Arming here is only the software half
 of two-step arming — the physical switch is the other half — and it is
 additionally refused while the config pyro_enabled flag is off (rehearsal).
+Arming needs the operator PIN (DMX_ARM_PIN); disarming deliberately never
+does — anyone on the page must always be able to make it safe.
 
 Failure style: control endpoints return {"ok": false, "reason": ...} rather
 than HTTP errors — the page shows the reason instead of breaking polling.
 """
 
+import secrets
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -30,9 +34,18 @@ MAX_AUDIO_UPLOAD = 50 * 1024 * 1024  # a show stinger, not an album
 # Default look for a light toggled on in test mode: warm amber, full dimmer.
 TEST_LIGHT_COLOR = (255, 140, 40)
 
+# Wrong arm PINs allowed per window before arming locks out. A 4-digit PIN
+# falls to a script in seconds without this.
+MAX_PIN_FAILURES = 5
+PIN_LOCKOUT_S = 60.0
+
 
 class OnRequest(BaseModel):
     on: bool
+
+
+class ArmRequest(BaseModel):
+    pin: str = ""
 
 
 class LightRequest(BaseModel):
@@ -69,6 +82,8 @@ def create_app(state: ShowState) -> FastAPI:
 
     def refuse(reason: str) -> dict:
         return {"ok": False, "reason": reason}
+
+    pin_failures: list[float] = []  # monotonic times of recent wrong PINs
 
     @app.get("/", response_class=HTMLResponse)
     def index() -> str:
@@ -156,7 +171,19 @@ def create_app(state: ShowState) -> FastAPI:
         return {"ok": True}
 
     @app.post("/api/arm")
-    def arm() -> dict:
+    def arm(req: ArmRequest) -> dict:
+        now = time.monotonic()
+        pin_failures[:] = [t for t in pin_failures if now - t < PIN_LOCKOUT_S]
+        if len(pin_failures) >= MAX_PIN_FAILURES:
+            state.log.write("operator", action="arm", granted=False, reason="pin_lockout")
+            return refuse("too many wrong PINs — arming locked for a minute")
+        if state.arm_pin is None:
+            state.log.write("operator", action="arm", granted=False, reason="no_pin")
+            return refuse("no arm PIN set — add DMX_ARM_PIN to .env and restart")
+        if not secrets.compare_digest(req.pin.encode(), state.arm_pin.encode()):
+            pin_failures.append(now)
+            state.log.write("operator", action="arm", granted=False, reason="wrong_pin")
+            return refuse("wrong PIN")
         if not state.gate.arm():
             state.log.write("operator", action="arm", granted=False)
             return refuse(

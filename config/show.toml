@@ -152,9 +152,23 @@ duration = 0.8
 # --- Fixtures -----------------------------------------------------------
 # Channel maps are PROVISIONAL until confirmed against printed manuals
 # (DESIGN.md open items). Offsets are 0-based from the fixture's address.
+#
+# Addresses match the chain as physically wired (config/bench.toml, read off
+# each device's display). Read them off the devices again before each night:
+# a fixture whose display disagrees with this file listens to someone else's
+# channels — and the SafetyGate only clamps the pyro channels listed here.
+# Loading refuses any config where two fixtures share a channel.
+#
+#   device            display   address
+#   H-E01A flame      d100      100  (safety = 100, fire = 101)
+#   MK-C09 CO2        d010       10  (jet = 10)
+#   PAR "light 2"     A020       20  (par2)
+#   PAR "light 1"     A030       30  (par1)
+#   par3..par8        A040..A090     (not yet on the chain — set on arrival)
+#   MK-F01 fogger     d200      200  (not yet on the chain — set on arrival)
 
 [fixtures.flame]
-address = 200
+address = 100
 channels = { safety = 0, fire = 1 }   # H-E01A: safety ch must hold 102-153 to arm
 pyro = true
 position = [0.0, 0.5]
@@ -166,7 +180,7 @@ pyro = true
 position = [0.0, -0.5]
 
 [fixtures.fogger]
-address = 20
+address = 200
 channels = { fog = 0, red = 1, green = 2, blue = 3 }  # MK-F01: confirm, likely 8ch
 position = [0.0, 0.0]
 
@@ -177,36 +191,36 @@ channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [1.5, 1.5]
 
 [fixtures.par2]
-address = 40
+address = 20
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [-1.5, 1.5]
 
 [fixtures.par3]
-address = 50
+address = 40
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [1.5, -1.5]
 
 [fixtures.par4]
-address = 60
+address = 50
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [-1.5, -1.5]
 
 [fixtures.par5]
-address = 70
+address = 60
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [3.0, 0.0]
 
 [fixtures.par6]
-address = 80
+address = 70
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [-3.0, 0.0]
 
 [fixtures.par7]
-address = 90
+address = 80
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [0.0, 3.0]
 
 [fixtures.par8]
-address = 100
+address = 90
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [0.0, -3.0]

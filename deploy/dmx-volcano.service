@@ -16,7 +16,11 @@ User=dbchristenson
 WorkingDirectory=/home/dbchristenson/dmx-halloween
 # Twilio credentials live here, mode 600, never in git:
 EnvironmentFile=-/home/dbchristenson/dmx-halloween/.env
-ExecStart=/home/dbchristenson/.local/bin/uv run dmx-volcano --real /dev/enttec
+# --frozen --offline: never re-resolve the lockfile and never touch the
+# network at start. With Starlink down, a plain `uv run` that decides the
+# env needs syncing fails, and Restart=always would loop on it all night.
+# The deploy step (`uv sync --frozen`) is what installs dependencies.
+ExecStart=/home/dbchristenson/.local/bin/uv run --frozen --offline dmx-volcano --real /dev/enttec
 Restart=always
 RestartSec=3
 

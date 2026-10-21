@@ -11,6 +11,7 @@ again. The config default is a placeholder.
 """
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,10 +26,23 @@ class CO2Tracker:
     alerted: bool = False
 
     def __post_init__(self) -> None:
-        if self.state_path.exists():
+        if not self.state_path.exists():
+            return
+        try:
             data = json.loads(self.state_path.read_text())
-            self.used_kg = data.get("used_kg", 0.0)
-            self.alerted = data.get("alerted", False)
+            self.used_kg = float(data.get("used_kg", 0.0))
+            self.alerted = bool(data.get("alerted", False))
+        except (OSError, ValueError, AttributeError) as error:
+            # Never crash-loop the show over a tank meter. Keep the bad file
+            # for inspection and start this tank's count from zero — loudly,
+            # because the meter now over-reports what is left.
+            aside = self.state_path.with_suffix(".corrupt")
+            os.replace(self.state_path, aside)
+            print(
+                f"WARNING: unreadable CO2 state ({error}); moved to {aside}. "
+                "Tank usage restarts from 0 — weigh the tank.",
+                flush=True,
+            )
 
     @property
     def remaining_kg(self) -> float:
@@ -58,7 +72,10 @@ class CO2Tracker:
         self._save()
 
     def _save(self) -> None:
+        # Write-then-rename: a power cut mid-write leaves the old file whole
+        # instead of truncated JSON. ext4's auto_da_alloc flushes the data
+        # ahead of a rename-over, so no fsync stall in the frame loop.
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        self.state_path.write_text(
-            json.dumps({"used_kg": self.used_kg, "alerted": self.alerted})
-        )
+        tmp = self.state_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"used_kg": self.used_kg, "alerted": self.alerted}))
+        os.replace(tmp, self.state_path)

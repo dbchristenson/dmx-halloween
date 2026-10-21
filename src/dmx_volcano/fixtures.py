@@ -52,4 +52,25 @@ def load_rig(config_path: Path) -> Rig:
             pyro=spec.get("pyro", False),
             position=tuple(spec.get("position", (0.0, 0.0))),
         )
+    check_addresses(rig)
     return rig
+
+
+def check_addresses(rig: Rig) -> None:
+    """Refuse a rig where any channel is out of range or claimed twice.
+
+    An overlap is how a PAR's color channel ends up driving the flame
+    machine's fire channel — unclamped, because the gate only knows the pyro
+    channels at the flame's *configured* address. Fail at startup, loudly."""
+    owner: dict[int, str] = {}
+    for fixture in rig.fixtures.values():
+        for name in fixture.channels:
+            ch = fixture.channel(name)
+            if not 1 <= ch <= 512:
+                raise ValueError(f"{fixture.name}.{name} is DMX channel {ch}, outside 1-512")
+            if ch in owner:
+                raise ValueError(
+                    f"DMX channel {ch} is claimed by both {owner[ch]} and "
+                    f"{fixture.name}.{name} — fix the addresses in config"
+                )
+            owner[ch] = f"{fixture.name}.{name}"
