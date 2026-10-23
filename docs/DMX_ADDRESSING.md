@@ -26,6 +26,7 @@ Consequences:
 | Flame (H-E01A) | 200 | 200 safety, 201 fire | `d200` |
 | CO2 cannon (MK-C09) | 400 | 400 jet | `d400` |
 | par1…par6 | 10, 20, 30, 40, 50, 60 | 4 used (dimmer,R,G,B) of a 7ch mode | `A010` … `A060` |
+| caldera_left, caldera_right | 100, 110 | 4 used (dimmer,R,G,B) of a 7ch mode | `A100`, `A110` |
 | Fogger (MK-F01) | 300 | 300–303 | `d300` |
 
 These match the chain as physically wired (`config/bench.toml`), so the

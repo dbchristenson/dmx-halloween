@@ -163,6 +163,8 @@ duration = 0.8
 #   H-E01A flame      d200      200  (safety = 200, fire = 201)
 #   MK-C09 CO2        d400      400  (jet = 400)
 #   par1..par6        A010..A060  10, 20 … 60  (7ch mode; 10-channel blocks)
+#   caldera_left      A100      100  (inside the crater, back-left)
+#   caldera_right     A110      110  (inside the crater, back-right)
 #   MK-F01 fogger     d300      300  (not yet on the chain — set on arrival)
 
 [fixtures.flame]
@@ -223,3 +225,21 @@ address = 60
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [2.5, 0.0]     # right
 tilt = 60
+
+# Caldera lights: two more RGB pars inside the top of the cone with the
+# flame/CO2/fogger, for the interior glow and for blasting white through the
+# CO2 plume. Assumed to be the same 7ch model as par1-par6 — confirm the
+# channel order on the bench. Both sit at the back of the crater, angled
+# diagonally across it toward the audience and tilted up; A110 tilts up a
+# little more than A100 (tilt values are eyeballed, preview only).
+[fixtures.caldera_left]
+address = 100
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [-0.5, 0.4]    # back-left of the crater
+tilt = 30
+
+[fixtures.caldera_right]
+address = 110
+channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
+position = [0.5, 0.4]     # back-right of the crater
+tilt = 38

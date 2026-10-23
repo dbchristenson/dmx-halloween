@@ -161,8 +161,8 @@ def render(
 
     dimmer = int(lo + (hi - lo) * level)
     for name, fixture in rig.fixtures.items():
-        if not name.startswith("par"):
-            continue
+        if fixture.pyro or "dimmer" not in fixture.channels:
+            continue  # lights only: every RGB par, exterior and caldera
         universe[fixture.channel("dimmer")] = dimmer
         universe[fixture.channel("red")] = r
         universe[fixture.channel("green")] = g

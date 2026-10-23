@@ -837,7 +837,9 @@ function drawPar(f, frame) {
     }
     ctx.globalAlpha = 1;
     ctx.restore();
-    label(f.name.replace('par', 'P'), x, y + 39);
+    // Crater lights crowd the center devices, so their labels go above.
+    const inside = Math.hypot(...f.position) < 1.8;
+    label(f.name.replace('par', 'P').replace('caldera_left', 'CL').replace('caldera_right', 'CR'), x, inside ? y - 30 : y + 39);
 }
 function device(f, kind, on) {
     const [x, y] = px(f.position);
@@ -909,7 +911,7 @@ function draw(frame) {
     ctx.setLineDash([]);
     drawTerrain();
     for (const f of layout.fixtures) {
-        if (f.name.startsWith('par'))
+        if (isLight(f))
             drawPar(f, frame);
         else if (f.name === 'fogger')
             drawFogger(f, frame);
@@ -1004,13 +1006,16 @@ async function tick() {
     }
 }
 /* ---- controls ---- */
+function isLight(f) {
+    return !f.pyro && 'dimmer' in f.channels;
+}
 function parOn(f, overrides) {
     return String(f.channels.dimmer) in overrides || String(f.channels.red) in overrides;
 }
 function buildTestPanel() {
     const grid = $("parGrid");
     for (const f of layout.fixtures) {
-        if (!f.name.startsWith("par"))
+        if (!isLight(f))
             continue;
         const b = document.createElement("button");
         b.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#i-light"/></svg><span>${f.name.toUpperCase()}</span>`;
