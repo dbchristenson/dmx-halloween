@@ -165,7 +165,7 @@ duration = 0.8
 #   par1..par6        A010..A060  10, 20 … 60  (7ch mode; 10-channel blocks)
 #   caldera_left      A100      100  (inside the crater, back-left)
 #   caldera_right     A110      110  (inside the crater, back-right)
-#   MK-F01 fogger     d300      300  (not yet on the chain — set on arrival)
+#   MK-F01 fogger     d300      300  (300-306, 7ch; on the chain as of 2026-10-23)
 
 [fixtures.flame]
 address = 200
@@ -181,7 +181,10 @@ position = [0.0, -0.5]
 
 [fixtures.fogger]
 address = 300
-channels = { fog = 0, red = 1, green = 2, blue = 3 }  # MK-F01: confirm, likely 8ch
+# MK-F01, 7ch per the MOKA product page: fog, R, G, B, LED strobe, LED
+# autorun, autorun speed. Value ranges are not published; strobe/autorun are
+# assumed off at 0 (the engine leaves them at 0) — confirm on the bench.
+channels = { fog = 0, red = 1, green = 2, blue = 3, strobe = 4, auto = 5, auto_speed = 6 }
 position = [0.0, 0.0]
 
 # 60-LED RGB pars (CHEGIT, 7ch) — confirm channel order on the bench.

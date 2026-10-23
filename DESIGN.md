@@ -12,7 +12,7 @@ Safety is the number one priority — every design decision below defers to that
 | Enttec DMX USB Pro (or equal) | USB→DMX with hardware frame timing | — | to purchase |
 | MOKA SFX H-E01A | LPG single-head flame machine | ch1 safety (102–153 = armed), ch2 fire; possibly ch2–6 per one source — **confirm from printed manual** | shipping from China |
 | MOKA MK-C09 | CO2 jet cannon | 1 channel (trigger) | owned |
-| MOKA MK-F01 | 1500W fogger + 24×3W RGB LEDs | ~8 channels (sibling H-F01 is 8ch) — **confirm from printed manual** | owned |
+| MOKA MK-F01 | 1500W fogger + 24×3W RGB LEDs | 7 channels per product page: fog, R, G, B, strobe, LED autorun, autorun speed — value ranges unpublished, **confirm on bench** | owned |
 | ~8× DMX PAR fixtures | Amber/red mood lighting in/around cone | 3–8 ch each | to purchase — require documented channel map and blackout-on-DMX-loss |
 | Speakers | Eruption/ambient audio | — | owned; wired aux from Pi (no Bluetooth — latency/dropout) |
 
@@ -179,7 +179,9 @@ Sim-first, hardware staged, flame last:
 
 ## Open items
 
-- [ ] Pull exact DMX channel maps from the MK-F01 and MK-C09 printed manuals.
+- [x] MK-F01 channel order: 7ch from the MOKA product page (value ranges still
+      to confirm on the bench).
+- [ ] Pull the exact DMX channel map from the MK-C09 printed manual.
 - [ ] H-E01A: confirm channel count (2 vs 6) and safety-channel values from its
       manual on arrival.
 - [ ] Bench-test DMX-loss behavior on all three Moka units.

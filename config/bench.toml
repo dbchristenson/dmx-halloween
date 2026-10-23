@@ -92,9 +92,10 @@ duration = 0.5
 #   MK-C09 CO2        d400      400  (jet = 400)
 #   PAR par1          A010       10  (CO2 moved to d400 to free the low block)
 #   PAR par2          A020       20
+#   MK-F01 fogger     d300      300  (fog = 300; on the chain as of 2026-10-23)
 #
-# The fogger is NOT on the bench chain; it keeps a config entry only because
-# the render path requires one. Parked at 300, far from anything real.
+# The phase looks keep fog at 0 here; run it from the test console's fog
+# slider when you mean to.
 
 [fixtures.flame]
 address = 200
@@ -109,8 +110,8 @@ pyro = true
 position = [0.0, -0.5]
 
 [fixtures.fogger]
-address = 300            # placeholder: no fogger on the bench chain
-channels = { fog = 0, red = 1, green = 2, blue = 3 }
+address = 300
+channels = { fog = 0, red = 1, green = 2, blue = 3, strobe = 4, auto = 5, auto_speed = 6 }
 position = [0.0, 0.0]
 
 [fixtures.par1]
