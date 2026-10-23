@@ -106,6 +106,7 @@ def create_app(state: ShowState) -> FastAPI:
                 {
                     "name": f.name,
                     "position": f.position,
+                    "tilt": f.tilt,
                     "pyro": f.pyro,
                     "channels": {name: f.channel(name) for name in f.channels},
                 }

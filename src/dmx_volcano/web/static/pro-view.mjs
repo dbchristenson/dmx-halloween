@@ -165,6 +165,14 @@ class VolcanoView {
       const light = new THREE.SpotLight(0xffffff, 0, 12, Math.PI * 0.29, 0.6, 2);
       light.position.copy(source);
       light.target.position.set(0, inside ? 2.0 : 1.75, 0);
+      if (!inside && Number.isFinite(fixture.tilt)) {
+        // Configured tilt: aim straight at the cone's axis, raised by tilt degrees.
+        const tilt = THREE.MathUtils.degToRad(fixture.tilt);
+        const inward = new THREE.Vector3(-source.x, 0, -source.z).normalize();
+        light.target.position.copy(source)
+          .addScaledVector(inward, Math.cos(tilt) * 3)
+          .add(new THREE.Vector3(0, Math.sin(tilt) * 3, 0));
+      }
       light.castShadow = true;
       light.shadow.mapSize.set(512, 512);
       light.shadow.bias = -0.0004;

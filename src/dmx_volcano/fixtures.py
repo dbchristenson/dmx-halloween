@@ -18,6 +18,7 @@ class Fixture:
     channels: dict[str, int]  # name -> offset from address (0-based)
     pyro: bool = False  # True for flame/CO2: subject to safety clamping
     position: tuple[float, float] = (0.0, 0.0)  # meters, for the visualizer
+    tilt: float | None = None  # beam degrees above horizontal, for the visualizer
 
     def channel(self, name: str) -> int:
         return self.address + self.channels[name]
@@ -51,6 +52,7 @@ def load_rig(config_path: Path) -> Rig:
             channels=spec["channels"],
             pyro=spec.get("pyro", False),
             position=tuple(spec.get("position", (0.0, 0.0))),
+            tilt=spec.get("tilt"),
         )
     check_addresses(rig)
     return rig

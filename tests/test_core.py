@@ -50,6 +50,13 @@ def test_rig_loads_and_flags_pyro():
     assert rig.pyro_channels() == {200, 201, 400}
 
 
+def test_par_tilts_load_and_rise_around_the_semicircle():
+    rig = load_rig(CONFIG)
+    tilts = [rig[f"par{n}"].tilt for n in range(1, 7)]
+    assert tilts == sorted(tilts)  # par1 (back-left) most face-on, par6 steepest
+    assert rig["flame"].tilt is None
+
+
 @pytest.mark.parametrize("config", ["show.toml", "bench.toml"])
 def test_shipped_configs_have_no_channel_overlaps(config):
     load_rig(CONFIG.parent / config)  # raises on any shared channel

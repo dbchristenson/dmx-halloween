@@ -48,8 +48,9 @@ sends control requests or changes the show.
   addon imports use local relative paths; the app makes no CDN requests.
 
 Fixture positions come from `/api/layout`: plan `(x, north)` becomes scene
-`(x, height, -north)`. Exterior RGB fixtures aim at the upper slope; interior
-fixtures sit at crater height. These heights and aims are preview assumptions.
+`(x, height, -north)`. Exterior RGB fixtures with a configured `tilt` aim at
+the cone's axis, raised that many degrees above horizontal; without one they
+aim at the upper slope. Interior fixtures sit at crater height. These heights and aims are preview assumptions.
 RGB and master dimmers, including fixtures without master dimmers, come from
 the post-safety `/api/state` frame. Spotlights illuminate the mesh and cast
 shadows. Fog, CO₂, and flame previews follow their respective output channels;

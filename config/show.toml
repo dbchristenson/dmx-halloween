@@ -185,33 +185,41 @@ position = [0.0, 0.0]
 # 60-LED RGB pars (CHEGIT, 7ch) — confirm channel order on the bench.
 # Semicircle open at the back, as seen from the audience: sides ~2.5 m out,
 # front three ~2 m. Plan axes: +x = audience's right, +y = away from the
-# audience (the front of the volcano is -y).
+# audience (the front of the volcano is -y). tilt = beam degrees above
+# horizontal (preview only): par1 is nearly face-on, rising toward par6;
+# the uneven steps mirror the hand-aimed rig.
 [fixtures.par1]
 address = 10
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [-1.77, 1.77]  # back-left
+tilt = 14
 
 [fixtures.par2]
 address = 20
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [-2.5, 0.0]    # left
+tilt = 23
 
 [fixtures.par3]
 address = 30
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [-1.41, -1.41] # front-left
+tilt = 35
 
 [fixtures.par4]
 address = 40
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [0.0, -2.0]    # front
+tilt = 41
 
 [fixtures.par5]
 address = 50
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [1.41, -1.41]  # front-right
+tilt = 53
 
 [fixtures.par6]
 address = 60
 channels = { dimmer = 0, red = 1, green = 2, blue = 3 }
 position = [2.5, 0.0]     # right
+tilt = 60
