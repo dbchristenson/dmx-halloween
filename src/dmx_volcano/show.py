@@ -32,7 +32,7 @@ from .fixtures import Rig, load_rig
 from .manual import BurstResult, TestConsole
 from .notify import SmsConfig, send_sms_async, sms_config_from
 from .phases import Phase, PhaseConfig, PhaseMachine, Transition
-from .safety import SafetyGate
+from .safety import READY_FIRE, SafetyGate
 from .state import ShowState
 from .stats import DwellConfig
 
@@ -325,15 +325,21 @@ class ShowEngine:
                 self.overlay.set(fire_ch, 255, until, since=fire_start)
         return granted
 
-    def _start_remote_hold(self, kind: str, duration: float, now: float) -> bool:
-        granted = self._pyro_burst(kind, duration, now, track_co2=False)
+    def _start_remote_hold(self, kind: str, duration: float, now: float) -> float:
+        """Start a hold with as much fire as the gate's budget allows, up to
+        `duration`. Returns the granted duration (0.0 = denied)."""
+        lead = FLAME_ARM_LEAD if kind == "flame" else 0.0
+        duration = min(duration, self.gate.fire_budget(kind, now + lead))
+        granted = duration >= READY_FIRE and self._pyro_burst(
+            kind, duration, now, track_co2=False
+        )
         self._remote_events.append(("remote_hold_start", {"fixture": kind, "granted": granted}))
-        return granted
+        return duration if granted else 0.0
 
     def _stop_remote_hold(self, kind: str, now: float, duration: float) -> None:
         fixture = self.rig[kind]
         channels = {fixture.channel(name) for name in fixture.channels}
-        self.gate.revoke_channels(channels)
+        self.gate.end_burst(kind, channels, now)
         for channel in channels:
             self.overlay.set(channel, 0, now)
             self.universe[channel] = 0

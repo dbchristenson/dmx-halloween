@@ -160,7 +160,7 @@ def test_overlong_pyro_cue_refused_at_startup_even_in_rehearsal(tmp_path, monkey
     monkeypatch.chdir(tmp_path)
     cfg = tmp_path / "show.toml"
     cfg.write_text(
-        CONFIG.read_text().replace("duration = 0.8", "duration = 3.5", 1)
+        CONFIG.read_text().replace("duration = 0.8", "duration = 10.5", 1)
     )
     with pytest.raises(ValueError, match="duration must be"):
         build_engine(cfg, FakeDriver())

@@ -35,9 +35,12 @@ Open the hamburger menu and choose **Remote Control** (`/remote-control`).
 2. For flame or CO₂, arm pyro, then press and hold the fixture button using
    mouse, touch, Space, or Enter. Release to stop. The flame retains its 0.5 s
    safety-channel lead. The configuration rehearsal lock still applies.
-3. Flame stops after at most 3 s of fire; CO₂ stops after at most 4 s. A new
-   press is required after cooldown. Cancelling early keeps the original
-   reserved cooldown window. The page shows when each fixture is ready.
+3. Flame stops after at most 10 s of fire, and never fires more than 10 s in
+   any 13 s window. There is no fixed cooldown: releasing early books only the
+   fire that actually happened, and the next hold gets whatever budget is left.
+   CO₂ stops after at most 4 s; cancelling it early keeps the original reserved
+   5 s cooldown. A new press is always required. The page shows when each
+   fixture is ready (flame: at least 1 s of fire available).
 4. **Disable controls** clears overrides; **Disarm pyro** cancels pyro output.
    The show stays held dormant until you release hold on Home.
 

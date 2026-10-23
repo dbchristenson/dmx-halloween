@@ -42,6 +42,10 @@ These are non-negotiable and reviewed against every change:
    pyro disabled.
 5. **CO2 operational limits encoded in software:** bursts ≤4s, ≥5s between bursts, siphon/dip-tube tank required, 3m clearance in
    spray direction.
+   **Flame limits:** bursts ≤10s, and at most 10s of fire in any rolling 13s
+   window (sustained use settles at 10s on / 3s off). No fixed gap between
+   bursts; an early release books only actual fire. Raised from 3s max + 3s
+   gap after the 2026-10 supervised bench test.
 6. **DMX-loss behavior is bench-tested per fixture** (kill signal mid-effect,
    observe) before pyro ever runs on a show night. Not documented publicly for
    any of the three Moka units. Flame machine gets a supervised bench test on

@@ -2,7 +2,7 @@
 
 import pytest
 
-from dmx_volcano.safety import MAX_BURST, MIN_GAP, SafetyGate
+from dmx_volcano.safety import FIRE_WINDOW, MAX_BURST, MIN_GAP, SafetyGate
 
 FLAME_SAFETY, FLAME_FIRE, CO2_JET = 1, 2, 10
 PYRO = {FLAME_SAFETY, FLAME_FIRE, CO2_JET}
@@ -131,7 +131,7 @@ def test_arm_lead_never_extends_fire_time():
     )
     fire_on = 0
     t = 0.0
-    while t < 4.0:
+    while t < MAX_BURST["flame"] + 1.0:
         frame = frame_with_fire()
         gate.clamp(frame, now=t)
         fire_on += frame[FLAME_FIRE - 1] == 255
@@ -139,7 +139,7 @@ def test_arm_lead_never_extends_fire_time():
     assert fire_on == pytest.approx(MAX_BURST["flame"] / 0.025, abs=1)
     with pytest.raises(ValueError):
         gate.request_burst(
-            "flame", {FLAME_FIRE}, MAX_BURST["flame"] + 0.1, now=10.0,
+            "flame", {FLAME_FIRE}, MAX_BURST["flame"] + 0.1, now=100.0,
             arm_channels={FLAME_SAFETY}, arm_lead=0.5,
         )
 
@@ -164,7 +164,7 @@ def test_min_gap_measured_from_fire_end_to_next_fire_start():
         gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=100.0, arm_lead=-1.0)
 
 
-@pytest.mark.parametrize('kind,channel,duration', [('flame', FLAME_FIRE, 3.0), ('co2', CO2_JET, 4.0)])
+@pytest.mark.parametrize('kind,channel,duration', [('flame', FLAME_FIRE, 10.0), ('co2', CO2_JET, 4.0)])
 def test_configured_activation_limit_grants_exact_max_and_rejects_longer(kind, channel, duration):
     gate = armable_gate()
     gate.arm()
@@ -176,3 +176,102 @@ def test_configured_activation_limit_grants_exact_max_and_rejects_longer(kind, c
     assert frame[channel - 1] == 0
     with pytest.raises(ValueError):
         gate.request_burst(kind, {channel}, duration + .1, now=20)
+
+
+def test_flame_limits_are_10s_burst_within_10s_per_13s():
+    assert MAX_BURST["flame"] == 10.0
+    assert FIRE_WINDOW["flame"] == (13.0, 10.0)
+
+
+def test_full_flame_burst_needs_3s_rest_then_fire_rolls_back_in():
+    gate = armable_gate()
+    gate.arm()
+    assert gate.request_burst("flame", {FLAME_FIRE}, 10.0, now=0.0)  # [0, 10)
+    # Any fire before t=13 would put >10s inside the 13s window ending with it.
+    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.1, now=10.0)
+    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.1, now=12.9)
+    assert gate.gap_remaining("flame", now=10.0) == pytest.approx(3.0, abs=1e-6)
+    # From t=13 the old burst rolls out of the window as fast as new fire
+    # rolls in: window ending 13+d holds (10 - d) old + d new = 10s.
+    assert gate.request_burst("flame", {FLAME_FIRE}, 2.0, now=13.0)  # [13, 15)
+    assert gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=15.0)
+    # Same again: fire may continue until 10s are back-to-back (13 -> 23),
+    # i.e. sustained use settles into 10s on / 3s off.
+    assert gate.fire_budget("flame", 15.5) == pytest.approx(7.5, abs=1e-6)
+
+
+def test_short_flame_taps_need_no_gap_until_budget_is_spent():
+    gate = armable_gate()
+    gate.arm()
+    for start in (0.0, 2.0, 4.0, 6.0, 8.0):
+        assert gate.request_burst("flame", {FLAME_FIRE}, 2.0, now=start)
+    # 10s fired in [0, 10); the next fire must wait until t=13.
+    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=10.0)
+    assert gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=13.0)
+
+
+def test_overlapping_flame_bursts_are_denied():
+    gate = armable_gate()
+    gate.arm()
+    assert gate.request_burst("flame", {FLAME_FIRE}, 2.0, now=0.0)
+    assert not gate.request_burst("flame", {FLAME_FIRE}, 1.0, now=1.0)
+
+
+def test_no_13s_window_ever_exceeds_10s_of_fire():
+    """Greedy worst case: request random bursts every frame for two minutes,
+    then measure the granted fire intervals exactly (frame sampling would add
+    up to one frame per short burst)."""
+    import random
+
+    rng = random.Random(7)
+    gate = armable_gate()
+    gate.arm()
+    granted = []
+    t = 0.0
+    while t < 120.0:
+        duration = rng.choice([0.2, 0.5, 1.0, 3.0, 7.0, 10.0])
+        if gate.request_burst("flame", {FLAME_FIRE}, duration, now=t):
+            granted.append((t, t + duration))
+        t += 0.025
+
+    window, budget = FIRE_WINDOW["flame"]
+
+    def fire_in(a: float) -> float:
+        return sum(max(0.0, min(e, a + window) - max(s, a)) for s, e in granted)
+
+    # The max over windows is reached with an edge on some burst edge.
+    edges = [s for s, _ in granted] + [e - window for _, e in granted]
+    worst = max(fire_in(a) for a in edges)
+    assert worst <= budget + 1e-6
+    assert worst >= budget - 0.5  # and the greedy client really uses the budget
+
+
+def test_ending_flame_early_books_only_actual_fire():
+    gate = armable_gate()
+    gate.arm()
+    assert gate.request_burst("flame", {FLAME_FIRE}, 10.0, now=0.0)
+    gate.end_burst("flame", {FLAME_FIRE}, now=1.0)
+    frame = frame_with_fire()
+    gate.clamp(frame, now=1.5)
+    assert frame[FLAME_FIRE - 1] == 0
+    # Only 1s was fired, so 9s more is available immediately.
+    assert gate.fire_budget("flame", 1.0) == pytest.approx(9.0, abs=1e-6)
+    assert gate.request_burst("flame", {FLAME_FIRE}, 9.0, now=1.0)
+    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=10.0)
+
+
+def test_disarm_does_not_reset_the_flame_budget():
+    gate = armable_gate()
+    gate.arm()
+    assert gate.request_burst("flame", {FLAME_FIRE}, 10.0, now=0.0)
+    gate.disarm()
+    gate.arm()
+    assert not gate.request_burst("flame", {FLAME_FIRE}, 1.0, now=10.5)
+
+
+def test_co2_early_end_keeps_reserved_gap():
+    gate = armable_gate()
+    gate.arm()
+    assert gate.request_burst("co2", {CO2_JET}, 4.0, now=0.0)
+    gate.end_burst("co2", {CO2_JET}, now=1.0)
+    assert not gate.request_burst("co2", {CO2_JET}, 1.0, now=4.0 + MIN_GAP["co2"] - 0.1)

@@ -64,12 +64,14 @@ def test_hold_maximum_does_not_repeat_and_gap_is_kept(engine):
     token = start(engine)
     engine.step(0)
     assert channels(engine, engine.step(.6)) == [255, 130]
-    assert channels(engine, engine.step(3.6)) == [0, 0]
+    assert channels(engine, engine.step(10.6)) == [0, 0]
     with pytest.raises(ValueError):
         engine.console.renew_hold(token)
+    # 10s fired in [0.5, 10.5): no fire until the 13s window frees >= 1s.
     token2 = engine.console.begin_hold('flame')
     engine.console.renew_hold(token2)
-    assert channels(engine, engine.step(3.7)) == [0, 0]
+    assert channels(engine, engine.step(10.7)) == [0, 0]
+    assert channels(engine, engine.step(11.3)) == [0, 0]
 
 
 def test_hold_cannot_bypass_rehearsal(engine):
@@ -107,12 +109,12 @@ def test_wall_time_maximum_with_continuing_heartbeats(engine, monkeypatch):
     monkeypatch.setattr('dmx_volcano.manual.time.monotonic', lambda: wall[0])
     token = start(engine)
     engine.step(0)
-    for i in range(1, 35):
+    for i in range(1, 105):
         wall[0] = 100 + i / 10
         engine.console.renew_hold(token)
         engine.step(.6)
     assert channels(engine, engine.step(.6)) == [255, 130]
-    wall[0] = 103.6
+    wall[0] = 110.6
     assert channels(engine, engine.step(.6)) == [0, 0]
     with pytest.raises(ValueError):
         engine.console.renew_hold(token)
@@ -242,3 +244,18 @@ def test_repeated_wrong_pins_lock_out_even_the_right_one(engine, monkeypatch):
     assert not engine.gate.pyro_enabled
     clock[0] += web.PIN_LOCKOUT_S
     assert arm('4242')['ok'] is True
+
+
+def test_flame_hold_after_short_tap_gets_remaining_budget_without_cooldown(engine):
+    token = start(engine)
+    engine.step(0)
+    assert channels(engine, engine.step(.6)) == [255, 130]
+    engine.console.end_hold(token)
+    assert channels(engine, engine.step(1.5)) == [0, 0]  # fired [0.5, 1.5)
+    assert engine.gate.gap_remaining('flame', 1.5) == 0
+    token = engine.console.begin_hold('flame')
+    engine.console.renew_hold(token)
+    engine.step(1.525)
+    assert engine.console.last_burst.granted
+    # 1s already fired in the window, so this hold gets the other 9s.
+    assert engine.console.last_burst.duration == pytest.approx(9.0, abs=1e-6)

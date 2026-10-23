@@ -121,7 +121,7 @@ strobe_hz = 8.0
 
 # --- Eruption cue timeline ----------------------------------------------
 # t = seconds from eruption start. Pyro cues must respect the safety gate
-# (flame: <=3.0s bursts, >=3s gap; co2: <=4s bursts, >=5s gap) or they are
+# (flame: <=10s bursts, <=10s of fire per 13s window; co2: <=4s bursts, >=5s gap) or they are
 # DENIED. A flame cue opens the H-E01A safety channel at t and fires 0.5s
 # later (the machine ignores fire unless safety is already open), so the
 # flame is visible over [t+0.5, t+0.5+duration).

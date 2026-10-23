@@ -64,8 +64,9 @@ def validate_timeline(timeline: list[Cue]) -> None:
 
 
 # Fallback timeline if config has no [[cues.eruption]] — tune in config, not
-# here. Pyro cues must respect safety.MAX_BURST and MIN_GAP (measured
-# burst-end to burst-start) or the gate will deny them — the gate wins.
+# here. Pyro cues must respect safety.MAX_BURST, MIN_GAP (measured
+# burst-end to burst-start) and FIRE_WINDOW or the gate will deny them —
+# the gate wins.
 ERUPTION = [
     Cue(0.0, "sound", {"file": "eruption.wav"}),
     Cue(0.0, "pars", {"color": (255, 30, 0), "strobe_hz": 8}),

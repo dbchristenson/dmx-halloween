@@ -8,7 +8,7 @@ safety design (DESIGN.md invariants):
   Pyro channels are REFUSED here outright — set_channels raises.
 - Pyro test fires are time-boxed burst *requests*, identical to eruption
   cues: the frame loop passes them to SafetyGate.request_burst, which
-  enforces arming, max duration, and min gaps. There is deliberately no
+  enforces arming, max duration, min gaps, and the flame duty cycle. There is deliberately no
   "flame on" toggle — activation is always bounded.
 
 Threading: the web thread writes requests under the lock; the frame loop is
@@ -36,6 +36,7 @@ class Hold:
     wall_end: float = float('inf')
     show_end: float = float('inf')
     show_start: float = 0.0
+    duration: float = 0.0  # fire granted at start; may be under MAX_BURST
 
 
 @dataclass
@@ -144,7 +145,7 @@ class TestConsole:
 
     def step_holds(
         self, now: float, allowed: bool,
-        start: Callable[[str, float, float], bool],
+        start: Callable[[str, float, float], float],
         stop: Callable[[str, float, float], None], arm_lead: float,
     ) -> None:
         """Frame-loop owned output; the lock serializes release versus start.
@@ -161,19 +162,22 @@ class TestConsole:
                            or now >= hold.show_end)
                 if expired:
                     if hold.started:
-                        elapsed = min(MAX_BURST[hold.kind], max(0.0, now - hold.show_start))
+                        elapsed = min(hold.duration, max(0.0, now - hold.show_start))
                         stop(hold.kind, now, elapsed)
                     del self._holds[token]
                     continue
                 if hold.confirmed and not hold.started:
-                    duration = MAX_BURST[hold.kind]
-                    granted = start(hold.kind, duration, now)
+                    # start() returns the fire it granted: the full maximum,
+                    # or less if the gate's duty-cycle budget is part-spent.
+                    duration = start(hold.kind, MAX_BURST[hold.kind], now)
+                    granted = duration > 0
                     self.last_burst = BurstResult(hold.kind, duration, granted, now)
                     if not granted:
                         del self._holds[token]
                         continue
                     hold.started = True
                     hold.show_start = now
+                    hold.duration = duration
                     window = duration + (arm_lead if hold.kind == 'flame' else 0)
                     hold.wall_end = wall + window
                     hold.show_end = now + window

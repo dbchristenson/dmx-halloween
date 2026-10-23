@@ -138,15 +138,17 @@ Action reference:
 | `sound` | `file` | plays once from `assets/` |
 | `fog` | `level` (0–255) | holds until the eruption ends |
 | `co2_burst` | `duration` (s) | max 10s, min 5s gap between bursts; consumes tracked CO2 |
-| `flame_burst` | `duration` (s) | max 2.0s, min 3s gap (fire end to next fire start); the safety channel opens at `t` and fire rises 0.5s later (`FLAME_ARM_LEAD`), so the flame itself burns over `[t+0.5, t+0.5+duration)` |
+| `flame_burst` | `duration` (s) | max 10s, at most 10s of fire in any 13s window, bursts may not overlap; the safety channel opens at `t` and fire rises 0.5s later (`FLAME_ARM_LEAD`), so the flame itself burns over `[t+0.5, t+0.5+duration)` |
 | `pars` / `fade` | — | currently no-ops; eruption lighting comes from `[looks.eruption]` |
 
 Timing rules to respect (or the gate denies the cue):
 
-- Flame: each burst ≤ **2.0s**, and ≥ **3s** from the *end* of one burst to
-  the *start* of the next. Two bursts at `t=5.0` (0.8s) and `t=9.0` is legal;
-  `t=5.0` and `t=7.5` is not — 7.5 − 5.8 = 1.7s gap, denied.
-- CO2: each burst ≤ **10s**, ≥ **5s** between bursts.
+- Flame: each burst ≤ **10s**, and the total fire inside *any* 13s window ≤
+  **10s**. Short bursts need no gap between them; a 10s burst must be followed
+  by 3s of no fire. Bursts at `t=5.0` (8s) and `t=14.0` (2s) are legal (fire
+  `[5.5, 13.5)` + `[14.5, 16.5)`: the window ending at 16.5 holds 8 + 2 = 10s);
+  a 3s burst at `t=14.0` is not (window ending 17.5 holds 8 + 3 = 11s).
+- CO2: each burst ≤ **4s**, ≥ **5s** between bursts.
 - Keep the last pyro cue comfortably before `eruption_duration` — a permit
   can't outlive its burst, but a cue landing after the phase ends never fires.
 
