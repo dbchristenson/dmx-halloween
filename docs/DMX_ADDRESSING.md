@@ -24,10 +24,8 @@ Consequences:
 | Fixture | Start address | Channels used | Set on device to |
 |---|---|---|---|
 | Flame (H-E01A) | 200 | 200 safety, 201 fire | `d200` |
-| CO2 cannon (MK-C09) | 10 | 10 jet | `d010` |
-| par2 ("light 2") | 20 | 20–23 (dimmer,R,G,B) | `A020` |
-| par1 ("light 1") | 30 | 30–33 | `A030` |
-| par3…par8 | 40, 50, 60, 70, 80, 90 | 4 each | `A040` … `A090` |
+| CO2 cannon (MK-C09) | 400 | 400 jet | `d400` |
+| par1…par6 | 10, 20, 30, 40, 50, 60 | 4 used (dimmer,R,G,B) of a 7ch mode | `A010` … `A060` |
 | Fogger (MK-F01) | 300 | 300–303 | `d300` |
 
 These match the chain as physically wired (`config/bench.toml`), so the
