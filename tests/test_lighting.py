@@ -174,6 +174,16 @@ def test_the_crater_hits_after_the_par_sweep(looks):
     assert all(d >= 250 for d, _ in crater(u)[:2])
 
 
+def test_fog_pulses_on_its_duty_cycle_from_phase_entry(looks):
+    look = looks["active"]
+    on, off = look["fog_on"], look["fog_off"]
+    u = Universe()
+    for since, expect in [(0.1, look["fog"]), (on - 0.1, look["fog"]),
+                          (on + 0.1, 0), (on + off + 0.1, look["fog"])]:
+        render(Phase.ACTIVE, RIG, u, since, since, looks)
+        assert u[FOGGER.channel("fog")] == expect, since
+
+
 def test_eruption_fog_is_constant_full(looks):
     u = Universe()
     for since in (0.0, 3.0, 9.9):

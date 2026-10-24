@@ -185,6 +185,10 @@ Sim-first, hardware staged, flame last:
 - [ ] MK-F01 bench check: it responds to DMX (it showed `PPPP` and ignored
       DMX while fed through the chain), and strobe/autorun at 0 really
       mean off.
+- [ ] MK-F01 fog bench: is the fog channel proportional (compare 64 / 128 /
+      255) or on/off above a threshold? At 255 and at a mid level: seconds
+      of fog before it stalls, and seconds to reheat. Size each phase's
+      `fog_on`/`fog_off` from that.
 - [ ] Pull the exact DMX channel map from the MK-C09 printed manual.
 - [ ] H-E01A: confirm channel count (2 vs 6) and safety-channel values from its
       manual on arrival.

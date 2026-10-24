@@ -147,9 +147,19 @@ def render(
         dimmer, rgb = _transition_hit(cal, timing, len(pars), since, dimmer, rgb)
         _write(universe, fixture, dimmer, rgb)
 
-    fog = look.get("fog", 0)
+    fog = _fog(look, since)
     if fog:
         universe[rig["fogger"].channel("fog")] = fog
+
+
+def _fog(look: dict, since: float) -> int:
+    """`fog` level, pulsed `fog_on` seconds on / `fog_off` off from phase
+    entry (on first, so every phase change puffs). Without both, constant."""
+    level = look.get("fog", 0)
+    on, off = look.get("fog_on"), look.get("fog_off")
+    if not level or not on or not off:
+        return level
+    return level if since % (on + off) < on else 0
 
 
 def _par_look(phase: Phase, look: dict, i: int, n: int, now: float, since: float):

@@ -101,6 +101,12 @@ accent_interval = [6.0, 10.0]
 # its own. Each phase change blacks out, sweeps a full flash par1 -> par6 in
 # the phase's hit_color (default: its color), then hits the crater last.
 #
+# Fog: `fog` is the level, pulsed `fog_on` s on / `fog_off` s off from phase
+# entry (on first). Running the pump cools the fogger's heater; run it too
+# long and the MK-F01 stops itself to reheat, and DMX can't tell us when.
+# These duty cycles are PLACEHOLDERS until the bench measures how long it
+# fogs at each level before stalling (DESIGN.md open items).
+#
 # [looks.<phase>.caldera] = the crater lights + the fogger's LEDs, coloring
 # the smoke. Keys missing there fall back to the phase's own keys.
 # Palettes below: sulfur yellow, barium green, sulfur blue, potassium
@@ -113,6 +119,9 @@ pulse_hz = 0.13                            # breathing rate; each par strays +/-
 accents = [[255, 70, 0], [150, 0, 255]]    # minority drift: orange, purple
 accent_share = 0.3                         # ~fraction of time a par spends accented
 accent_hz = 0.04                           # how often accent episodes come and go
+fog = 120                                  # a thin wisp now and then
+fog_on = 2.0
+fog_off = 18.0
 
 [looks.dormant.caldera]
 color = [0, 60, 255]                       # dominant: sulfur blue, barely glowing
@@ -130,6 +139,8 @@ accents = [[255, 0, 0], [0, 255, 0]]       # minority: red, green
 accent_share = 0.4
 accent_hz = 0.07
 fog = 180
+fog_on = 3.0
+fog_off = 9.0
 
 [looks.active.caldera]
 dimmer = [40, 255]
@@ -143,6 +154,8 @@ beat_hz = [0.6, 2.5]   # heartbeat accelerates from first to second over the pha
 palette = [[255, 255, 255], [255, 90, 0], [255, 0, 0]]  # each beat picks one per par
 hit_color = [255, 255, 255]
 fog = 255
+fog_on = 4.0
+fog_off = 4.0
 
 [looks.imminent.caldera]
 palette = [[255, 200, 0], [80, 255, 0], [0, 80, 255], [160, 0, 255], [255, 0, 140]]  # same cascading heartbeat
