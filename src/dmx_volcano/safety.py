@@ -17,6 +17,13 @@ Invariants enforced here (see DESIGN.md "Safety invariants"):
   refuses to fire unless its safety channel is already open when the fire
   channel rises). The arm channels are permitted from the request, the
   trigger channels only from `now + arm_lead`; both permits expire together.
+- A burst may be a *sequence* of fire pulses (flame balls) under one arm
+  window: the arm channels hold open across the whole sequence, the trigger
+  channels are permitted only inside each pulse, and the sequence is granted
+  or denied as a whole — never half of it.
+- Flame pulses shorter than MIN_PULSE are refused (unburnt gas), and flame
+  is denied for FLAME_AFTER_CO2 seconds after any CO2 burst ends (lingering
+  CO2 can stop it igniting — unburnt gas again).
 - Disarming (or restart — arming state is never persisted) drops all permits.
 - The config pyro_enabled flag is a rehearsal interlock enforced here, not in
   the web layer: arm() refuses while it is off.
@@ -25,8 +32,10 @@ Invariants enforced here (see DESIGN.md "Safety invariants"):
   clamp() that was mid-way through rebuilding the permit list.
 
 Show activation limits: flame <= 10s, CO2 <= 4s.
-Flame: at most 10s of fire in any 13s window, no fixed gap.
-CO2: minimum 5s gap.
+Flame: at most 10s of fire in any 13s window, no fixed gap; pulses >= 0.1s;
+none within 60s after CO2.
+CO2: minimum 5s gap (MOKA MK-C09 product page: "two jet time intervals
+cannot be short by 5 seconds").
 """
 
 import threading
@@ -38,6 +47,17 @@ MAX_BURST = {"flame": 10.0, "co2": 4.0}
 MIN_GAP = {"flame": 0.0, "co2": 5.0}
 # kind -> (window seconds, max fire seconds inside any such window).
 FIRE_WINDOW = {"flame": (13.0, 10.0)}
+# Shortest pulse the gate grants. A pulse shorter than the H-E01A reliably
+# ignites releases unburnt LPG, which is heavier than air and pools in the
+# crater, and the next pulse lights the whole cloud. PROVISIONAL: raise this
+# to the bench-verified floor (DESIGN.md open items).
+MIN_PULSE = {"flame": 0.1, "co2": 0.0}
+# CO2 leaves the cannon cold and ~1.5x heavier than air: after the visible
+# plume clears it still pools in the crater bowl around the flame head, where
+# it can stop the flame from igniting. No published dissipation figure exists,
+# so this is a deliberately long margin; the show never comes near it
+# (dormant lasts >= 120s after every eruption).
+FLAME_AFTER_CO2 = 60.0
 # gap_remaining reports "ready" once at least this much fire is grantable.
 READY_FIRE = 1.0
 _EPS = 1e-9
@@ -99,7 +119,7 @@ class SafetyGate:
         windowed kinds, "ready" means at least READY_FIRE seconds of fire."""
         now = time.monotonic() if now is None else now
         with self._lock:
-            ready = max(now, self._last_burst_end.get(kind, float("-inf")) + MIN_GAP[kind])
+            ready = max(now, self._earliest_locked(kind))
             if kind not in FIRE_WINDOW:
                 return ready - now
             want = min(READY_FIRE, MAX_BURST[kind])
@@ -112,6 +132,15 @@ class SafetyGate:
                 mid = (lo + hi) / 2
                 lo, hi = (lo, mid) if self._fits_locked(kind, mid, want) else (mid, hi)
             return hi - now
+
+    def _earliest_locked(self, kind: str) -> float:
+        """Earliest fire start allowed by the gap rules (MIN_GAP, CO2 lockout)."""
+        earliest = self._last_burst_end.get(kind, float("-inf")) + MIN_GAP[kind]
+        if kind == "flame":
+            earliest = max(
+                earliest, self._last_burst_end.get("co2", float("-inf")) + FLAME_AFTER_CO2
+            )
+        return earliest
 
     def _fire_since(self, kind: str, t: float) -> float:
         return sum(max(0.0, end - max(start, t)) for start, end in self._fired.get(kind, ()))
@@ -129,7 +158,7 @@ class SafetyGate:
         return self._fire_since(kind, end - window) + duration <= budget + _EPS
 
     def _budget_locked(self, kind: str, fire_start: float) -> float:
-        if fire_start - self._last_burst_end.get(kind, float("-inf")) < MIN_GAP[kind]:
+        if fire_start < self._earliest_locked(kind):
             return 0.0
         if self._fits_locked(kind, fire_start, MAX_BURST[kind]):
             return MAX_BURST[kind]
@@ -156,46 +185,81 @@ class SafetyGate:
         same end. `duration` is the trigger time and is what MAX_BURST and
         FIRE_WINDOW bound; the lead only ever adds arm-channel time, never
         fire time."""
-        now = time.monotonic() if now is None else now
-        with self._lock:
-            return self._request_burst_locked(
-                kind, channels, duration, now, arm_channels, arm_lead
-            )
+        return self.request_sequence(
+            kind, channels, [(0.0, duration)], now,
+            arm_channels=arm_channels, arm_lead=arm_lead,
+        )
 
-    def _request_burst_locked(
+    def request_sequence(
         self,
         kind: str,
         channels: set[int],
-        duration: float,
+        pulses: list[tuple[float, float]],
+        now: float | None = None,
+        *,
+        arm_channels: set[int] = frozenset(),
+        arm_lead: float = 0.0,
+    ) -> bool:
+        """Ask permission for a sequence of pulses under one arm window.
+        Returns False if denied — the whole sequence, never part of it.
+
+        `pulses` are (offset, duration) with offsets measured from the first
+        fire, i.e. from `now + arm_lead`. Each pulse is bounded like a burst
+        (MIN_PULSE..MAX_BURST) and every pulse counts toward FIRE_WINDOW; the
+        arm channels hold open from now until the last pulse ends, and the
+        trigger channels are permitted only inside a pulse."""
+        now = time.monotonic() if now is None else now
+        if not pulses:
+            raise ValueError("a sequence needs at least one pulse")
+        for (offset, duration), prev in zip(pulses, [None, *pulses]):
+            if not MIN_PULSE[kind] <= duration <= MAX_BURST[kind]:
+                raise ValueError(
+                    f"{kind} pulse of {duration}s outside "
+                    f"{MIN_PULSE[kind]}-{MAX_BURST[kind]}s"
+                )
+            if offset < (0.0 if prev is None else prev[0] + prev[1]):
+                raise ValueError(f"{kind} pulses must be in order and must not overlap")
+        if arm_lead < 0:
+            raise ValueError(f"arm_lead must be >= 0, got {arm_lead}")
+        with self._lock:
+            return self._request_locked(
+                kind, channels, pulses, now, arm_channels, arm_lead
+            )
+
+    def _request_locked(
+        self,
+        kind: str,
+        channels: set[int],
+        pulses: list[tuple[float, float]],
         now: float,
         arm_channels: set[int],
         arm_lead: float,
     ) -> bool:
         if not self.pyro_enabled:
             return False
-        if duration > MAX_BURST[kind]:
-            raise ValueError(
-                f"{kind} burst of {duration}s exceeds max {MAX_BURST[kind]}s"
-            )
-        if arm_lead < 0:
-            raise ValueError(f"arm_lead must be >= 0, got {arm_lead}")
         fire_start = now + arm_lead
-        end = fire_start + duration
-        if fire_start - self._last_burst_end.get(kind, float("-inf")) < MIN_GAP[kind]:
-            return False
-        if not self._fits_locked(kind, fire_start, duration):
+        windows = [(fire_start + offset, fire_start + offset + d) for offset, d in pulses]
+        end = windows[-1][1]
+        if fire_start < self._earliest_locked(kind):
             return False
         if kind in FIRE_WINDOW:
             fired = self._fired.setdefault(kind, [])
-            fired[:] = [f for f in fired if f[1] > fire_start - FIRE_WINDOW[kind][0]]
-            fired.append([fire_start, end])
+            kept = [f for f in fired if f[1] > fire_start - FIRE_WINDOW[kind][0]]
+            # Book pulse by pulse so later pulses see the earlier ones.
+            fired[:] = kept
+            for start, stop in windows:
+                if not self._fits_locked(kind, start, stop - start):
+                    fired[:] = kept
+                    return False
+                fired.append([start, stop])
         if arm_channels:
             self._permits.append(
                 Permit(channels=set(arm_channels), starts_at=now, expires_at=end)
             )
-        self._permits.append(
-            Permit(channels=set(channels), starts_at=fire_start, expires_at=end)
-        )
+        for start, stop in windows:
+            self._permits.append(
+                Permit(channels=set(channels), starts_at=start, expires_at=stop)
+            )
         self._last_burst_end[kind] = end
         return True
 

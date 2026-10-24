@@ -2,7 +2,14 @@
 
 import pytest
 
-from dmx_volcano.safety import FIRE_WINDOW, MAX_BURST, MIN_GAP, SafetyGate
+from dmx_volcano.safety import (
+    FIRE_WINDOW,
+    FLAME_AFTER_CO2,
+    MAX_BURST,
+    MIN_GAP,
+    MIN_PULSE,
+    SafetyGate,
+)
 
 FLAME_SAFETY, FLAME_FIRE, CO2_JET = 1, 2, 10
 PYRO = {FLAME_SAFETY, FLAME_FIRE, CO2_JET}
@@ -275,3 +282,55 @@ def test_co2_early_end_keeps_reserved_gap():
     assert gate.request_burst("co2", {CO2_JET}, 4.0, now=0.0)
     gate.end_burst("co2", {CO2_JET}, now=1.0)
     assert not gate.request_burst("co2", {CO2_JET}, 1.0, now=4.0 + MIN_GAP["co2"] - 0.1)
+
+
+# --- flame patterns (sequences) ---------------------------------------------
+
+
+def test_sequence_holds_arm_open_but_fires_only_inside_pulses():
+    gate = armable_gate()
+    gate.arm()
+    pulses = [(0.0, 0.2), (0.5, 0.6)]  # fire [1.0, 1.2) and [1.5, 2.1)
+    assert gate.request_sequence(
+        "flame", {FLAME_FIRE}, pulses, now=0.5,
+        arm_channels={FLAME_SAFETY}, arm_lead=0.5,
+    )
+    for t, safety, fire in [
+        (0.6, 130, 0), (1.1, 130, 255), (1.3, 130, 0),
+        (1.8, 130, 255), (2.0, 130, 255), (2.2, 0, 0),
+    ]:
+        frame = frame_with_fire()
+        gate.clamp(frame, now=t)
+        assert (frame[FLAME_SAFETY - 1], frame[FLAME_FIRE - 1]) == (safety, fire), t
+
+
+def test_sequence_over_budget_is_denied_whole_and_books_nothing():
+    gate = armable_gate()
+    gate.arm()
+    assert gate.request_burst("flame", {FLAME_FIRE}, 9.0, now=0.0)  # [0, 9)
+    # 0.5 + 0.8 of fire: the second pulse would break the 13s budget.
+    assert not gate.request_sequence("flame", {FLAME_FIRE}, [(0.0, 0.5), (1.0, 0.8)], now=9.0)
+    frame = frame_with_fire()
+    gate.clamp(frame, now=9.2)
+    assert frame[FLAME_FIRE - 1] == 0
+    # Nothing was booked: the first pulse alone still fits.
+    assert gate.request_burst("flame", {FLAME_FIRE}, 1.0, now=9.0)
+
+
+def test_pulse_shorter_than_min_pulse_or_out_of_order_raises():
+    gate = armable_gate()
+    gate.arm()
+    with pytest.raises(ValueError, match="outside"):
+        gate.request_burst("flame", {FLAME_FIRE}, MIN_PULSE["flame"] / 2, now=0.0)
+    with pytest.raises(ValueError, match="overlap"):
+        gate.request_sequence("flame", {FLAME_FIRE}, [(0.0, 0.5), (0.3, 0.2)], now=0.0)
+
+
+def test_flame_locked_out_after_co2():
+    gate = armable_gate()
+    gate.arm()
+    assert gate.request_burst("co2", {CO2_JET}, 2.0, now=0.0)  # ends at 2
+    t = 2.0 + FLAME_AFTER_CO2
+    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=t - 0.1)
+    assert gate.gap_remaining("flame", now=2.0) == pytest.approx(FLAME_AFTER_CO2)
+    assert gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=t)

@@ -15,6 +15,8 @@
 #   - No flame in the show cycle (the eruption is CO2 only); fire it from the
 #     test console. The H-E01A safety channel is driven only under a
 #     SafetyGate permit, identical to the show path.
+#   - After any CO2 burst the gate refuses flame for 60s (lingering CO2 can
+#     stop it igniting) — test flame first, or wait out the countdown.
 
 [show]
 frame_rate = 40

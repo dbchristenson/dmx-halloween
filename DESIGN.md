@@ -40,12 +40,27 @@ These are non-negotiable and reviewed against every change:
 4. **Restarts come back disarmed.** Re-arming is always a human act, never
    remembered state. The show engine (systemd) auto-starts into dormant with
    pyro disabled.
-5. **CO2 operational limits encoded in software:** bursts ≤4s, ≥5s between bursts, siphon/dip-tube tank required, 3m clearance in
-   spray direction.
+5. **CO2 operational limits encoded in software:** bursts ≤4s, ≥5s between bursts (MOKA's MK-C09 page: "two jet time intervals
+   cannot be short by 5 seconds"), siphon/dip-tube tank required, 3m
+   clearance in spray direction.
    **Flame limits:** bursts ≤10s, and at most 10s of fire in any rolling 13s
    window (sustained use settles at 10s on / 3s off). No fixed gap between
    bursts; an early release books only actual fire. Raised from 3s max + 3s
-   gap after the 2026-10 supervised bench test.
+   gap after the 2026-10 supervised bench test. A flame *pattern* is one
+   gate grant: safety held open across it, fire only inside each pulse,
+   granted whole or not at all.
+   **Unburnt gas:** a flame pulse that fails to ignite releases LPG, which
+   is heavier than air and pools in the crater for the next pulse to light.
+   So pulses shorter than `safety.MIN_PULSE` are refused (raise it to the
+   bench-verified ignition floor), and flame is refused for 60s after any
+   CO2 burst ends: CO2 is cold and ~1.5x heavier than air, pools in the
+   crater after the visible plume clears, and can stop the flame igniting.
+   No published dissipation figure exists; 60s is a deliberately long
+   margin the show never comes near (dormant lasts ≥120s after an eruption).
+   The crater is not airtight (1x4s across a frame under OSB, gaps along
+   the sheet edges, back open while the inside is still being worked on),
+   so gas spills out rather than sitting for long. The margins stay anyway:
+   they cost the show nothing, and closing the back reduces that venting.
 6. **DMX-loss behavior is bench-tested per fixture** (kill signal mid-effect,
    observe) before pyro ever runs on a show night. Not documented publicly for
    any of the three Moka units. Flame machine gets a supervised bench test on
