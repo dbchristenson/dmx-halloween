@@ -207,3 +207,30 @@ def test_sim_clock_clamps_speed():
     clock = SimClock()
     assert clock.set_speed(10_000.0) == SimClock.MAX_SPEED
     assert clock.set_speed(0.0) == SimClock.MIN_SPEED
+
+
+def test_test_pattern_fires_through_the_gate_with_bench_timing(engine):
+    from dmx_volcano.flame import Timing
+
+    engine.gate.arm()
+    enable_test_mode(engine)
+    engine.console.request_pattern(". -", Timing(dot=0.2, dash=0.4, gap=0.3))
+    fire_ch = engine.rig["flame"].channel("fire")
+    L = FLAME_ARM_LEAD
+    lit = {round(t, 3) for t, f in run(engine, 0.0, L + 1.5) if f[fire_ch - 1] == 255}
+    assert all(L <= t < L + 0.2 or L + 0.5 <= t < L + 0.9 for t in lit)
+    assert any(t < L + 0.2 for t in lit) and any(t >= L + 0.5 for t in lit)
+    assert engine.console.last_burst.granted is True
+
+
+def test_test_pattern_api_refuses_a_pulse_below_the_floor(engine):
+    from dmx_volcano.web.app import PatternRequest, create_app
+
+    app = create_app(engine.state)
+    routes = {r.path: r.endpoint for r in app.routes if hasattr(r, "endpoint")}
+    fire = routes["/api/test/pattern"]
+    req = PatternRequest(pattern="..", dot=0.05, dash=0.4, gap=0.3)
+    enable_test_mode(engine)
+    engine.gate.arm()
+    assert fire(req)["ok"] is False
+    assert fire(PatternRequest(pattern="..", dot=0.15, dash=0.4, gap=0.3))["ok"] is True

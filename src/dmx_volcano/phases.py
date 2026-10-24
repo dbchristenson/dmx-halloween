@@ -3,7 +3,8 @@
 - Dormant and active sample their dwell at phase entry (stats.py).
 - Active escalates with p_erupt, else fizzles back to dormant.
 - Escalation always passes through IMMINENT: a fixed-length, unmistakable
-  warning look that tells visitors to pay attention *before* any pyro.
+  warning that tells visitors to pay attention *before* any CO2. (Flame
+  marks transitions without warning; DESIGN.md safety invariant 7.)
   Manual triggers route through it too — nobody, operator included, can
   skip the warning. It cannot fizzle: imminent always erupts.
 - Eruption is a fixed-length scripted cue (cues.py), then a mandatory

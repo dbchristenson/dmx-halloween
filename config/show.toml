@@ -178,6 +178,46 @@ gap = 0.15     # blackout snap at every phase change, seconds
 step = 0.07    # delay between pars in the sweep (par1 -> par6)
 decay = 0.9    # each par's flash fades into the new look over this long
 
+[looks.flame]
+color = [255, 110, 0]   # every light flares to this on each flame pulse...
+tail = 0.3              # ...and fades back over this long
+
+# --- Flame patterns -----------------------------------------------------
+# Flame balls in morse-like rhythms: "." = dot pulse, "-" = dash pulse,
+# spaces ignored. Each pattern opens the H-E01A safety channel 0.5s before
+# its first pulse and holds it through the last; fire rises only inside a
+# pulse. The SafetyGate grants a pattern whole or not at all. See
+# docs/SHOW_AUTHORING.md section 3.
+#
+# Flame belongs to the transitions and imminent; the eruption is CO2 only
+# (the CO2 smothers the flame). No "eruption->..." patterns: CO2 pools in
+# the crater and can stop the flame igniting, so the gate also refuses
+# flame for 60s after any CO2 burst.
+#
+# dot/dash are PLACEHOLDERS: the bench finds the shortest pulse that ignites
+# every time, back to back (safety.MIN_PULSE). A pulse that fails to ignite
+# releases unburnt LPG into the crater.
+
+[flame]
+dot = 0.15
+dash = 0.45
+gap = 0.25               # dark time between pulses in a pattern
+clear_before_co2 = 1.5   # the finale ends this long before the first CO2 cue
+
+# Fired at the start of the new phase, more flame the nearer the eruption.
+# "imminent->eruption" is the finale: it plays at the END of imminent.
+[flame.transitions]
+"dormant->active"    = ["-..-", "-.-", ".-."]
+"active->dormant"    = ["."]                             # a fizzle: one weak pop
+"active->imminent"   = [".--..-", "-.-.--", "--..--"]
+"dormant->imminent"  = [".--..-", "-.-.--", "--..--"]    # manual trigger
+"imminent->eruption" = ["...---", "-.-.--"]
+
+# Imminent's own flame, packed between its entry pattern and the finale.
+[flame.imminent]
+patterns = ["-.-.", "..--..", "-..-.-", "---"]
+rest = [1.0, 2.5]        # random pause between patterns, seconds
+
 # --- Eruption cue timeline ----------------------------------------------
 # t = seconds from eruption start. The eruption is CO2 + fog only. CO2 cues
 # must respect the safety gate (<=4s bursts, >=5s from one burst's end to

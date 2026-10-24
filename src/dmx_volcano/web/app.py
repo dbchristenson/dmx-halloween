@@ -23,7 +23,8 @@ from pydantic import BaseModel
 
 from ..audio import list_assets, play, resolve_asset, safe_asset_name
 from ..phases import Phase
-from ..safety import MAX_BURST, MIN_GAP
+from ..flame import Timing
+from ..safety import MAX_BURST, MIN_GAP, MIN_PULSE
 from ..state import ShowState
 
 INDEX_PATH = Path(__file__).parent / "static" / "index.html"
@@ -62,6 +63,13 @@ class FogRequest(BaseModel):
 class BurstRequest(BaseModel):
     kind: str  # "flame" | "co2"
     duration: float
+
+
+class PatternRequest(BaseModel):
+    pattern: str  # e.g. ".--..-"
+    dot: float
+    dash: float
+    gap: float
 
 
 class HoldBeginRequest(BaseModel):
@@ -112,7 +120,8 @@ def create_app(state: ShowState) -> FastAPI:
                 }
                 for f in state.rig.fixtures.values()
             ],
-            "limits": {"max_burst": MAX_BURST, "min_gap": MIN_GAP},
+            "limits": {"max_burst": MAX_BURST, "min_gap": MIN_GAP, "min_pulse": MIN_PULSE},
+            "flame_timing": vars(state.flame_timing) if state.flame_timing else None,
         }
 
     @app.get("/api/state")
@@ -274,6 +283,25 @@ def create_app(state: ShowState) -> FastAPI:
             return refuse(str(e))
         state.log.write(
             "operator", action="test_burst", burst=req.kind, duration=req.duration
+        )
+        return {"ok": True, "queued": True}
+
+    @app.post("/api/test/pattern")
+    def test_pattern(req: PatternRequest) -> dict:
+        """Bench a flame pattern with chosen pulse timing. Same sequence path
+        as the show's patterns: one SafetyGate grant for the whole pattern."""
+        console = state.console
+        if console is None or not console.enabled:
+            return refuse("enable test mode first")
+        if not state.gate.pyro_enabled:
+            return refuse("pyro is disarmed — arm (config + web) to test fire")
+        try:
+            console.request_pattern(req.pattern, Timing(req.dot, req.dash, req.gap))
+        except ValueError as e:
+            return refuse(str(e))
+        state.log.write(
+            "operator", action="test_pattern", pattern=req.pattern,
+            dot=req.dot, dash=req.dash, gap=req.gap,
         )
         return {"ok": True, "queued": True}
 

@@ -12,6 +12,7 @@ from typing import Any
 from .audio import SoundBank
 from .co2 import CO2Tracker
 from .events import EventLog
+from .flame import Timing
 from .fixtures import Rig
 from .manual import TestConsole
 from .phases import PhaseMachine
@@ -27,6 +28,7 @@ class ShowState:
     co2: CO2Tracker | None = None
     console: TestConsole | None = None
     sounds: SoundBank | None = None
+    flame_timing: Timing | None = None  # [flame] dot/dash/gap, pre-fills the console
     clock: Any = None  # SimClock in sim mode, None on the real wire
     arm_pin: str | None = None  # DMX_ARM_PIN; None = arming refused
     lock: threading.Lock = field(default_factory=threading.Lock)

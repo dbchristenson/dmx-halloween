@@ -27,6 +27,7 @@ from .cues import ERUPTION, Cue, CueRunner, load_timeline, validate_timeline
 from .driver.fake import FakeDriver
 from .driver.universe import Universe
 from .events import EventLog
+from .flame import FlameConfig, FlamePlanner, Shot, parse_pattern
 from .fixtures import Rig, load_rig
 from .lighting import build_looks, render
 from .manual import BurstResult, TestConsole
@@ -42,7 +43,8 @@ FLAME_SAFETY_ARM_VALUE = 130  # H-E01A arm window is 102-153 (manual, 2CH mode)
 # The H-E01A only fires if its safety channel is already open when the fire
 # channel rises ("activate the safety channel, then use channel 2"). Raising
 # both in the same frame armed nothing on the 2026-09-11 bench. So a flame
-# burst opens safety this long before fire; the gate clamps fire until then.
+# burst or pattern opens safety this long before fire; the gate clamps fire
+# until then.
 FLAME_ARM_LEAD = 0.5
 
 
@@ -132,6 +134,7 @@ class ShowEngine:
         co2: CO2Tracker | None = None,
         sms: SmsConfig | None = None,
         console: TestConsole | None = None,
+        flame: FlameConfig | None = None,
     ) -> None:
         self.rig = rig
         self.gate = gate
@@ -156,6 +159,15 @@ class ShowEngine:
         self.co2_windows = [
             (c.t, c.t + c.params["duration"]) for c in timeline if c.action == "co2_burst"
         ]
+        self.flame = FlamePlanner(
+            flame or FlameConfig(),
+            lead=FLAME_ARM_LEAD,
+            imminent_duration=machine.config.imminent_duration,
+            first_co2=min((start for start, _ in self.co2_windows), default=float("inf")),
+        )
+        self._moves: list[Transition] = []
+        self._flame_plan: list[Shot] = []  # scheduled, not yet started
+        self._flame_live: list[tuple[Shot, bool]] = []  # started: (shot, granted)
         self._prev_phase = machine.phase
         machine.on_transition = self._on_transition
 
@@ -166,6 +178,9 @@ class ShowEngine:
         )
         if self.audio is not None:
             self.audio.enter_phase(t.frm.value, t.to.value)
+        # Planned in step(), which knows the time; a new move replaces any
+        # pattern still waiting from the previous phase.
+        self._moves.append(t)
 
     def stop_audio(self) -> None:
         if self.audio is not None:
@@ -174,6 +189,17 @@ class ShowEngine:
     def step(self, now: float) -> bytes:
         self.machine.tick(now)
         phase = self.machine.phase
+        for move in self._moves:
+            self._flame_plan = self.flame.plan(
+                move.frm.value, move.to.value, move.cause, now
+            )
+        self._moves.clear()
+        while self._flame_plan and self._flame_plan[0].start <= now:
+            self._fire_shot(self._flame_plan.pop(0), now)
+        self._flame_live = [
+            (shot, granted) for shot, granted in self._flame_live
+            if shot.end(FLAME_ARM_LEAD) > now
+        ]
         if self.audio is not None:
             if self.audio.phase is None:
                 # First frame after startup: no transition fired, so begin
@@ -203,11 +229,19 @@ class ShowEngine:
                 granted = self._pyro_burst(kind, duration, now)
                 self.console.last_burst = BurstResult(kind, duration, granted, now)
                 self.log.write("test_burst", burst=kind, duration=duration, granted=granted)
+            for pattern, timing in self.console.pop_patterns():
+                shot = Shot(now, pattern, parse_pattern(pattern, timing), "test")
+                granted = self._fire_shot(shot, now)
+                self.console.last_burst = BurstResult("flame", 0.0, granted, now)
         else:
             render(
                 phase, self.rig, self.universe, now, self.machine.elapsed(now), self.looks,
                 self.co2_windows,
+                # Lights flash with every scheduled pulse, armed or not, so
+                # rehearsal shows the same look as show night.
+                [w for shot, _ in self._flame_live for w in shot.fire_windows(FLAME_ARM_LEAD)],
             )
+        self._write_flame(now)
         if self.console is not None:
             self.console.step_holds(
                 now, self.gate.pyro_enabled and self.machine.phase is Phase.DORMANT
@@ -242,6 +276,32 @@ class ShowEngine:
         # "pars"/"fade" are handled by the phase render for now.
 
         self.log.write("cue", t=cue.t, action=cue.action, granted=granted, **cue.params)
+
+    def _fire_shot(self, shot: Shot, now: float) -> bool:
+        """The one path that puts a flame pattern on the wire — the show's
+        transition/imminent patterns and test-console patterns alike. The
+        gate grants the whole sequence or none of it."""
+        shot.start = now
+        granted = self.gate.request_sequence(
+            "flame", {self.rig["flame"].channel("fire")}, shot.pulses, now=now,
+            arm_channels={self.rig["flame"].channel("safety")}, arm_lead=FLAME_ARM_LEAD,
+        )
+        self._flame_live.append((shot, granted))
+        self.log.write(
+            "flame_pattern", source=shot.source, pattern=shot.pattern,
+            pulses=shot.pulses, granted=granted,
+        )
+        return granted
+
+    def _write_flame(self, now: float) -> None:
+        """Granted patterns hold safety open and raise fire inside each
+        pulse. The gate's permits are what actually bound it on the wire."""
+        for shot, granted in self._flame_live:
+            if not granted or not shot.start <= now < shot.end(FLAME_ARM_LEAD):
+                continue
+            self.universe[self.rig["flame"].channel("safety")] = FLAME_SAFETY_ARM_VALUE
+            if any(a <= now < b for a, b in shot.fire_windows(FLAME_ARM_LEAD)):
+                self.universe[self.rig["flame"].channel("fire")] = 255
 
     def _pyro_burst(
         self, kind: str, duration: float, now: float, *, track_co2: bool = True
@@ -405,6 +465,12 @@ def build_engine(
     timeline_cfg = raw.get("cues", {}).get("eruption")
     timeline = load_timeline(timeline_cfg) if timeline_cfg else ERUPTION
     validate_timeline(timeline)
+    flame = FlameConfig.from_config(raw.get("flame", {}))
+    flame.check_finale(
+        FLAME_ARM_LEAD,
+        machine.config.imminent_duration,
+        min((c.t for c in timeline if c.action == "co2_burst"), default=float("inf")),
+    )
 
     sounds = SoundBank.from_config(raw.get("audio", {}), ASSETS_DIR)
     missing = sounds.missing_files()
@@ -419,7 +485,7 @@ def build_engine(
     state = (
         ShowState(
             rig=rig, gate=gate, machine=machine, log=log, co2=co2,
-            console=console, sounds=sounds,
+            console=console, sounds=sounds, flame_timing=flame.timing,
             # From the environment (.env via systemd), never config: the
             # repo is public. Unset means the web page cannot arm at all.
             arm_pin=os.environ.get("DMX_ARM_PIN") or None,
@@ -435,6 +501,7 @@ def build_engine(
         co2=co2,
         sms=sms_config_from(raw),
         console=console,
+        flame=flame,
     )
     return engine, state, raw
 

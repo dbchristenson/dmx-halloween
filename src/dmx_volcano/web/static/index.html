@@ -373,12 +373,34 @@ section h2 {
 .pyrorow button {
   flex:1
 }
+.pyrorow input {
+  min-height:48px;
+  min-width:0;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:var(--panel);
+  color:var(--ash);
+  padding:6px 10px
+}
+#patText {
+  flex:1
+}
+.pyrorow label {
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  font-size:12px;
+  color:var(--dust)
+}
+.pyrorow label input {
+  width:100%
+}
 .ready {
   font-size:12px;
   min-width:4ch;
   color:var(--dust)
 }
-#fireFlame {
+#fireFlame, #firePattern {
   color:var(--magma)
 }
 #fireCo2 {
@@ -670,6 +692,16 @@ dialog::backdrop {
       <span class="ready" id="flameReady"></span>
     </div>
     <div class="pyrorow">
+      <input id="patText" class="mono" value=".--..-" autocomplete="off" spellcheck="false" aria-label="flame pattern: dots and dashes">
+      <button id="firePattern">Fire pattern</button>
+      <span class="ready" id="patternReady"></span>
+    </div>
+    <div class="pyrorow">
+      <label>dot s<input id="patDot" type="number" step="0.05" min="0" inputmode="decimal"></label>
+      <label>dash s<input id="patDash" type="number" step="0.05" min="0" inputmode="decimal"></label>
+      <label>gap s<input id="patGap" type="number" step="0.05" min="0" inputmode="decimal"></label>
+    </div>
+    <div class="pyrorow">
       <select id="co2Dur" aria-label="CO2 burst duration"></select>
       <button id="fireCo2">Fire CO2</button>
       <span class="ready" id="co2Ready"></span>
@@ -759,6 +791,7 @@ function okText(url, body) {
         '/api/test/light': `${body?.name?.toUpperCase()} ${body?.on ? 'on' : 'off'}.`,
         '/api/test/fog': `Fog set to ${body?.level}.`,
         '/api/test/burst': 'Burst requested. Awaiting the safety gate.',
+        '/api/test/pattern': `Pattern ${body?.pattern} requested. Awaiting the safety gate.`,
         '/api/sim/speed': `Simulation speed set to ${body?.speed}×.`,
         '/api/tank/reset': 'CO₂ meter reset for the fresh tank.',
     };
@@ -973,6 +1006,7 @@ function sync(s) {
             }
         }
         updateReady("flame", $("flameReady"), $("fireFlame"), test.ready_in.flame);
+        updateReady("flame", $("patternReady"), $("firePattern"), test.ready_in.flame);
         updateReady("co2", $("co2Ready"), $("fireCo2"), test.ready_in.co2);
     }
     if (s.sim) {
@@ -1023,10 +1057,15 @@ function buildTestPanel() {
         grid.appendChild(b);
         litPars[f.name] = b;
     }
-    const durs = { flame: [0.5, 1.0, 3.0, 5.0, 10.0], co2: [1.0, 2.0, 3.0, 4.0] };
+    const durs = { flame: [0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 3.0, 5.0, 10.0], co2: [1.0, 2.0, 3.0, 4.0] };
+    const limits = layout.limits;
     for (const [kind, sel] of [["flame", $("flameDur")], ["co2", $("co2Dur")]])
-        for (const d of durs[kind].filter((d) => d <= layout.limits.max_burst[kind]))
-            sel.add(new Option(d.toFixed(1) + "s", d));
+        for (const d of durs[kind].filter((d) => d >= limits.min_pulse[kind] && d <= limits.max_burst[kind]))
+            sel.add(new Option(d + "s", d));
+    const timing = layout.flame_timing || { dot: 0.15, dash: 0.45, gap: 0.25 };
+    $("patDot").value = timing.dot;
+    $("patDash").value = timing.dash;
+    $("patGap").value = timing.gap;
 }
 function setTheme(theme) {
     document.documentElement.dataset.theme = theme;
@@ -1149,6 +1188,16 @@ $("fogRange").onchange = () => post("/api/test/fog", { level: Number($("fogRange
 $("fireFlame").onclick = () => {
     if (confirm(`Fire flame for ${$("flameDur").value}s?`))
         post("/api/test/burst", { kind: "flame", duration: Number($("flameDur").value) });
+};
+$("firePattern").onclick = () => {
+    const body = {
+        pattern: $("patText").value,
+        dot: Number($("patDot").value),
+        dash: Number($("patDash").value),
+        gap: Number($("patGap").value),
+    };
+    if (confirm(`Fire flame pattern ${body.pattern} (dot ${body.dot}s, dash ${body.dash}s, gap ${body.gap}s)?`))
+        post("/api/test/pattern", body);
 };
 $("fireCo2").onclick = () => post("/api/test/burst", { kind: "co2", duration: Number($("co2Dur").value) });
 $("tankBtn").onclick = () => {

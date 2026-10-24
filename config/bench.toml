@@ -12,9 +12,10 @@
 #     cycle takes under 30 seconds.
 #   - dormant/active dwells are ~infinite: NOTHING transitions on its own;
 #     every phase change during a bench session is an explicit operator act.
-#   - No flame in the show cycle (the eruption is CO2 only); fire it from the
-#     test console. The H-E01A safety channel is driven only under a
-#     SafetyGate permit, identical to the show path.
+#   - Flame: one-pop entry pattern and a short finale on a manual trigger,
+#     nothing else. Bench pulse lengths with the test console's pattern row
+#     (dot/dash/gap are editable there); the H-E01A safety channel is driven
+#     only under a SafetyGate permit, identical to the show path.
 #   - After any CO2 burst the gate refuses flame for 60s (lingering CO2 can
 #     stop it igniting) — test flame first, or wait out the countdown.
 
@@ -60,6 +61,19 @@ fog = 0
 
 [looks.eruption]
 fog = 0
+
+# Flame on a manual trigger: "." as imminent starts, "..." finale ending
+# 1.5s before the eruption's CO2 pop. Same timing as show.toml until the
+# bench finds the real pulse floor.
+[flame]
+dot = 0.15
+dash = 0.45
+gap = 0.25
+clear_before_co2 = 1.5
+
+[flame.transitions]
+"dormant->imminent" = ["."]
+"imminent->eruption" = ["..."]
 
 # Eruption timeline, bench edition: one short CO2 pop, PAR strobe from the
 # phase render. No fog, no sound assets required.

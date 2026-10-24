@@ -9,7 +9,9 @@ safety design (DESIGN.md invariants):
 - Pyro test fires are time-boxed burst *requests*, identical to eruption
   cues: the frame loop passes them to SafetyGate.request_burst, which
   enforces arming, max duration, min gaps, and the flame duty cycle. There is deliberately no
-  "flame on" toggle — activation is always bounded.
+  "flame on" toggle — activation is always bounded. Flame *patterns* (flame
+  balls) are queued the same way and fire through the same sequence path
+  as the show's own patterns.
 
 Threading: the web thread writes requests under the lock; the frame loop is
 the only consumer and the only thing that touches the wire.
@@ -21,6 +23,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from .flame import Timing, parse_pattern
 from .safety import MAX_BURST
 
 HOLD_LEASE = 0.75
@@ -56,6 +59,7 @@ class TestConsole:
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _channels: dict[int, int] = field(default_factory=dict)
     _burst_queue: list[tuple[str, float]] = field(default_factory=list)
+    _pattern_queue: list[tuple[str, Timing]] = field(default_factory=list)
     last_burst: BurstResult | None = None
     _holds: dict[str, Hold] = field(default_factory=dict)
 
@@ -69,6 +73,7 @@ class TestConsole:
             self.enabled = False
             self._channels.clear()
             self._burst_queue.clear()
+            self._pattern_queue.clear()
             for hold in self._holds.values():
                 hold.released = True
 
@@ -100,6 +105,21 @@ class TestConsole:
             if any(h.kind == kind for h in self._holds.values()):
                 raise ValueError('fixture is controlled by a remote hold')
             self._burst_queue.append((kind, duration))
+
+    def request_pattern(self, pattern: str, timing: Timing) -> None:
+        """Queue a flame pattern test fire with bench-chosen pulse timing.
+        Anything the gate would refuse (pulse too short, too much fire)
+        fails here so the web layer can report it."""
+        parse_pattern(pattern, timing)
+        with self._lock:
+            if any(h.kind == "flame" for h in self._holds.values()):
+                raise ValueError('fixture is controlled by a remote hold')
+            self._pattern_queue.append((pattern, timing))
+
+    def pop_patterns(self) -> list[tuple[str, Timing]]:
+        with self._lock:
+            due, self._pattern_queue = self._pattern_queue, []
+            return due
 
     def pop_bursts(self) -> list[tuple[str, float]]:
         with self._lock:

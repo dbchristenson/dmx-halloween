@@ -52,6 +52,63 @@ def test_manual_trigger_passes_through_imminent(engine):
     assert engine.machine.phase is Phase.ERUPTION
 
 
+def record_shots(engine) -> list:
+    """Every flame pattern the engine starts, with its actual start time."""
+    shots = []
+    fire = engine._fire_shot
+
+    def spy(shot, now):
+        shots.append(shot)
+        return fire(shot, now)
+
+    engine._fire_shot = spy
+    return shots
+
+
+def test_armed_cycle_fires_flame_only_inside_pattern_pulses(engine):
+    engine.gate.arm()
+    shots = record_shots(engine)
+    engine.machine.request_eruption()
+    E = engine.machine.config.imminent_duration
+    frames = run(engine, 0.0, E + 12.0)
+
+    safety_ch = engine.rig["flame"].channel("safety")
+    fire_ch = engine.rig["flame"].channel("fire")
+    L = FLAME_ARM_LEAD
+    pulses = [w for s in shots for w in s.fire_windows(L)]
+    arms = [(s.start, s.end(L)) for s in shots]
+    edges = tuple(e for w in pulses + arms for e in w)
+    assert {s.source for s in shots} >= {"dormant->imminent", "imminent", "imminent->eruption"}
+    for t, frame in frames:
+        if near_edge(t, edges):
+            continue
+        if any(a <= t < b for a, b in pulses):
+            assert frame[fire_ch - 1] == 255, f"flame should burn at t={t:.2f}"
+            assert frame[safety_ch - 1] == FLAME_SAFETY_ARM_VALUE
+        elif any(a <= t < b for a, b in arms):
+            assert frame[fire_ch - 1] == 0, f"fire between pulses at t={t:.2f}"
+            assert frame[safety_ch - 1] == FLAME_SAFETY_ARM_VALUE
+        else:
+            assert frame[fire_ch - 1] == 0, f"flame leaked at t={t:.2f}"
+            assert frame[safety_ch - 1] == 0, f"safety leaked at t={t:.2f}"
+
+
+def test_flame_finale_clears_the_first_co2_and_eruption_is_flame_free(engine):
+    engine.gate.arm()
+    shots = record_shots(engine)
+    engine.machine.request_eruption()
+    E = engine.machine.config.imminent_duration
+    frames = run(engine, 0.0, E + 12.0)
+    first_co2 = E + min(start for start, _ in engine.co2_windows)
+    clear = engine.flame.config.clear_before_co2
+    finale = [s for s in shots if s.source == "imminent->eruption"]
+    assert len(finale) == 1
+    assert finale[0].end(FLAME_ARM_LEAD) == pytest.approx(first_co2 - clear, abs=DT)
+    assert all(s.end(FLAME_ARM_LEAD) <= first_co2 - clear + DT for s in shots)
+    fire_ch = engine.rig["flame"].channel("fire")
+    assert all(f[fire_ch - 1] == 0 for t, f in frames if t >= E)
+
+
 def test_eruption_fires_co2_only_in_cue_windows(engine):
     engine.gate.arm()
     engine.machine.request_eruption()
@@ -78,6 +135,49 @@ def test_disarmed_eruption_never_puts_pyro_on_the_wire(engine):
     # The show itself still runs: fog and pars are alive during the eruption.
     fog_ch = engine.rig["fogger"].channel("fog")
     assert any(f[fog_ch - 1] == 255 for _, f in frames)
+
+
+def test_disarm_mid_pulse_kills_flame_next_frame(engine):
+    engine.gate.arm()
+    shots = record_shots(engine)
+    engine.machine.request_eruption()
+    engine.step(0.0)
+    a, b = shots[0].fire_windows(FLAME_ARM_LEAD)[0]
+    t = (a + b) / 2
+    run(engine, DT, t)
+    fire_ch = engine.rig["flame"].channel("fire")
+    assert engine.driver.last_frame[fire_ch - 1] == 255
+    engine.gate.disarm()
+    engine.step(t + DT)
+    assert engine.driver.last_frame[fire_ch - 1] == 0
+
+
+def test_lights_flare_on_flame_pulses_even_disarmed(engine):
+    shots = record_shots(engine)
+    engine.machine.request_eruption()
+    engine.step(0.0)
+    a, b = shots[0].fire_windows(FLAME_ARM_LEAD)[0]
+    run(engine, DT, (a + b) / 2)
+    frame = engine.driver.last_frame
+    for name in ("par1", "par6", "caldera_left"):
+        f = engine.rig[name]
+        assert frame[f.channel("dimmer") - 1] == 255
+        assert frame[f.channel("red") - 1] == 255
+        assert frame[f.channel("blue") - 1] == 0
+    assert frame[engine.rig["flame"].channel("fire") - 1] == 0
+
+
+def test_transition_patterns_follow_the_move_but_not_an_operator_hold(engine):
+    engine.gate.arm()
+    shots = record_shots(engine)
+    t = engine.machine.dwell + DT
+    run(engine, 0.0, t)  # dormant dwell expires: dormant -> active
+    assert engine.machine.phase is Phase.ACTIVE
+    assert [s.source for s in shots] == ["dormant->active"]
+    engine.machine.hold = True  # active -> dormant by hold: no fizzle pop
+    run(engine, t + DT, t + 5.0)
+    assert engine.machine.phase is Phase.DORMANT
+    assert [s.source for s in shots] == ["dormant->active"]
 
 
 def test_eruption_count_cooldown_and_co2_usage(engine):
@@ -108,7 +208,11 @@ def test_co2_alert_marks_once_when_threshold_crossed(engine):
 
 def test_imminent_look_is_distinct_from_active(engine):
     """During imminent the pars must hit both full-off and full-on (heartbeat),
-    which the breathing phases never do."""
+    which the breathing phases never do. Flame flares are off here: they
+    light everything on each pulse and are tested on their own."""
+    from dmx_volcano.flame import FlameConfig
+
+    engine.flame.config = FlameConfig()
     engine.machine.request_eruption()
     E = engine.machine.config.imminent_duration
     frames = run(engine, 0.0, E - 0.5)

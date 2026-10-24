@@ -15,6 +15,9 @@ Two groups:
   so they color the smoke in sulfur/firework chemistry colors. In the
   eruption they go white, solid through each CO2 burst, to light the ice.
 
+Every light also flares toward flame orange on each flame pulse, and the
+fog runs a per-phase duty cycle (on/off) so the heater never runs dry.
+
 Every "random" choice comes from a hash of the light's index and the beat or
 episode number, never from an RNG, so a frame is a pure function of time and
 the looks can be asserted on in tests.
@@ -88,6 +91,8 @@ DEFAULT_LOOKS = {
         "caldera": {"palette": [[255, 255, 255]], "pop_hz": 3.0, "blast_tail": 0.4},
     },
     "transition": {"gap": 0.15, "step": 0.07, "decay": 0.9},
+    # Every light flares to `color` on each flame pulse, fading over `tail`.
+    "flame": {"color": [255, 110, 0], "tail": 0.3},
 }
 
 SPREAD = 0.3  # +/- fraction each light's own rate strays from the look's rate
@@ -117,14 +122,17 @@ def render(
     since: float,
     looks: dict,
     blasts: list[tuple[float, float]] = (),
+    flares: list[tuple[float, float]] = (),
 ) -> None:
     """Write every light's ambient look into a blacked-out universe. `since`
     is the time in the current phase; `blasts` are the eruption's CO2 cue
-    windows [(start, end)] in eruption time. Pyro is never written here —
-    only cues (via overlay + gate) touch flame/CO2."""
+    windows [(start, end)] in eruption time; `flares` are flame pulse
+    windows in show time (`now`). Pyro is never written here — only cues
+    and flame patterns (through the gate) touch flame/CO2."""
     universe.blackout()
     look = looks[phase.value]
     timing = looks["transition"]
+    flare = _flare(looks["flame"], now, flares)
     lights = [f for f in rig.fixtures.values() if not f.pyro and "red" in f.channels]
     pars = sorted((f for f in lights if f.name.startswith("par")), key=lambda f: f.name)
     caldera = [f for f in lights if f not in pars]
@@ -133,7 +141,7 @@ def render(
     for i, fixture in enumerate(pars):
         level, rgb = _par_look(phase, look, i, len(pars), now, since)
         dimmer, rgb = _transition_hit(look, timing, i, since, lo + (hi - lo) * level, rgb)
-        _write(universe, fixture, dimmer, rgb)
+        _write(universe, fixture, *_flare_mix(looks["flame"], flare, dimmer, rgb))
 
     cal = {**look, **look["caldera"]}
     lo, hi = cal["dimmer"]
@@ -145,7 +153,7 @@ def render(
             dimmer, rgb = dimmer + (255 - dimmer) * blast, _mix(rgb, [255, 255, 255], blast)
         # The crater hits last, after the sweep reaches the far par.
         dimmer, rgb = _transition_hit(cal, timing, len(pars), since, dimmer, rgb)
-        _write(universe, fixture, dimmer, rgb)
+        _write(universe, fixture, *_flare_mix(looks["flame"], flare, dimmer, rgb))
 
     fog = _fog(look, since)
     if fog:
@@ -268,6 +276,24 @@ def _blast(look: dict, since: float, blasts) -> float:
         if end <= since < end + tail:
             best = max(best, 1 - (since - end) / tail)
     return best
+
+
+def _flare(look: dict, now: float, flares) -> float:
+    """1 inside a flame pulse, then a `tail` falloff; 0 elsewhere."""
+    tail = look["tail"]
+    best = 0.0
+    for start, end in flares:
+        if start <= now < end:
+            return 1.0
+        if end <= now < end + tail:
+            best = max(best, 1 - (now - end) / tail)
+    return best
+
+
+def _flare_mix(look: dict, w: float, dimmer: float, rgb):
+    if not w:
+        return dimmer, rgb
+    return dimmer + (255 - dimmer) * w, _mix(rgb, look["color"], w)
 
 
 def _transition_hit(look: dict, timing: dict, i: int, since: float, dimmer: float, rgb):

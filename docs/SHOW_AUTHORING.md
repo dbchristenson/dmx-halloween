@@ -8,7 +8,8 @@ changes are ever needed for content work.
 The one rule that outranks this file: **the safety gate wins.** Any cue that
 asks for more fire or CO2 than `safety.py` allows is denied at runtime and
 logged with `"granted": false`. Check `logs/<date>.jsonl` after a run if an
-effect didn't fire — the log tells you exactly which cue was denied and when.
+effect didn't fire — the log tells you exactly which cue (or `flame_pattern`)
+was denied and when.
 
 ## 1. Sounds
 
@@ -148,9 +149,61 @@ falls back to the phase's own.
 | `caldera.hold_s` / `caldera.fade` | active | how long each crater light holds a color, and the crossfade share |
 | `caldera.pop_hz` | eruption | white pops per second, per crater light |
 | `caldera.blast_tail` | eruption | white falloff after each CO2 cue, seconds |
-| `fog` | any | constant fogger level for the phase (0–255) |
+| `fog` | any | fogger level for the phase (0–255) |
+| `fog_on` / `fog_off` | any | duty cycle in seconds: fog for `fog_on`, rest for `fog_off`, starting on at phase entry. Omit both for constant fog |
+| `[looks.flame] color` / `tail` | — | every light flares to `color` on each flame pulse and fades back over `tail` seconds, armed or not |
 
-## 3. The eruption cue timeline
+**Fog duty cycles.** Running the pump cools the fogger's heater. Fog too
+long and the MK-F01 stops itself to reheat (10–30s, typically), and DMX
+can't tell the show it has. Size `fog_on`/`fog_off` from the bench numbers
+(DESIGN.md open items) so it never stalls, least of all in the eruption.
+
+## 3. Flame patterns
+
+The flame fires "flame balls": short pulses in morse-like rhythms. A
+pattern is a string of `.` (dot) and `-` (dash); spaces are ignored, so
+`"- . . -"` and `"-..-"` are the same.
+
+```toml
+[flame]
+dot = 0.15               # pulse lengths, seconds
+dash = 0.45
+gap = 0.25               # dark time between pulses
+clear_before_co2 = 1.5   # the finale ends this long before the first CO2 cue
+
+[flame.transitions]
+"dormant->active"    = ["-..-", "-.-"]
+"active->dormant"    = ["."]            # fizzle
+"active->imminent"   = [".--..-"]
+"dormant->imminent"  = [".--..-"]       # manual trigger
+"imminent->eruption" = ["...---"]       # the finale
+
+[flame.imminent]
+patterns = ["-.-.", "..--.."]
+rest = [1.0, 2.5]        # random pause between patterns
+```
+
+- A transition pattern fires as the show makes exactly that move, at the
+  start of the new phase. Each pick is random, never the same pattern
+  twice in a row.
+- In imminent: the entry pattern, then `[flame.imminent]` patterns back to
+  back with a random `rest`, then the finale. The finale plays at the end
+  of imminent and finishes `clear_before_co2` before the eruption's first
+  CO2 cue; a finale that can't fit is refused at startup.
+- No flame in the eruption or after it: `"eruption->..."` keys are refused
+  at startup, and the gate refuses flame for 60s after any CO2 burst.
+- An operator hold's active → dormant fires nothing.
+- Each pattern opens the safety channel 0.5s before its first pulse and
+  holds it to the last; fire rises only inside a pulse. The gate grants the
+  whole pattern or none of it, and counts every pulse toward the flame
+  budget (10s of fire per 13s).
+- Every pulse must be at least `safety.MIN_PULSE` (0.1s until the bench
+  sets it). A pulse too short to ignite releases unburnt gas.
+
+To try a pattern on the hardware, use the test console's **Fire pattern**
+row: type the pattern and set dot/dash/gap there, without editing config.
+
+## 4. The eruption cue timeline
 
 The eruption is a fixed script: `[[cues.eruption]]` entries, each with a
 time `t` (seconds after eruption start), an `action`, and that action's
@@ -172,6 +225,8 @@ Action reference:
 | `co2_burst` | `duration` (s) | max 4s, min 5s gap between bursts; consumes tracked CO2 |
 | `pars` / `fade` | — | currently no-ops; eruption lighting comes from `[looks.eruption]` |
 
+The eruption has no flame: the CO2 would smother it (section 3).
+
 Timing rules to respect (or the gate denies the cue):
 
 - CO2: each burst ≤ **4s**, ≥ **5s** from one burst's end to the next one's
@@ -182,7 +237,7 @@ Timing rules to respect (or the gate denies the cue):
 The whole eruption length is `[phases] eruption_duration`. The warning phase
 before it is `imminent_duration` (30s). Both are plain numbers to edit.
 
-## 4. Pacing (when things happen at all)
+## 5. Pacing (when things happen at all)
 
 ```toml
 [phases]
@@ -203,7 +258,7 @@ To make eruptions more frequent: lower `scale` values and/or raise
 trigger timestamps to see whether the crowd wanted faster pacing than the
 sampler delivered.
 
-## 5. Testing a change
+## 6. Testing a change
 
 1. `uv run dmx-volcano`, open `http://localhost:8000`.
 2. Use **Trigger eruption** — you'll get the full 30s imminent warning and

@@ -65,19 +65,51 @@ These are non-negotiable and reviewed against every change:
    observe) before pyro ever runs on a show night. Not documented publicly for
    any of the three Moka units. Flame machine gets a supervised bench test on
    arrival, and its tip-over shutoff (45°) is verified.
+7. **The imminent warning precedes every CO2 burst, not every flame.**
+   Transitions fire flame with no warning. That is acceptable only because
+   the flame head is raised ~10ft with a 3m exclusion zone on all sides
+   that no visitor can enter in any phase — if the rig or the walkway
+   changes, revisit this.
 
 ## Show design
 
-Four-phase stochastic state machine:
+Four-phase stochastic state machine. The effects have fixed roles (decided
+2026-10-24): **CO2 is the showpiece and the scarce resource**, so it is
+saved for the eruption alone. The fogger is visually the biggest effect
+and runs in every phase. The flame cannot fire in the eruption (the CO2
+smothers it), so it marks the transitions and drives imminent, as
+pulsed "flame balls".
 
-- **Dormant** (dominant): soft amber/red PAR glow, silence.
-- **Active**: fog rolling, occasional CO2 spurts, low rumble loop.
+| Phase | Fogger | Flame | CO2 |
+|---|---|---|---|
+| Dormant | light duty cycle | — | — |
+| Active | heavier duty cycle | — | — |
+| Imminent | heavy duty cycle | patterns throughout | — |
+| Eruption | full, constant | **never** | a pop, then the big burst |
+
+- **Dormant** (dominant): soft amber/red PAR glow, the occasional fog wisp.
+- **Active**: fog rolling, low rumble loop.
 - **Imminent** (fixed 30s): the attention signal — an accelerating full-range
-  lighting heartbeat, fog at full, warning sound. Every eruption passes
-  through it, including manual triggers: nobody can skip the warning. It
-  cannot fizzle; imminent always erupts.
-- **Eruption**: fixed scripted cue timeline — full sound, rapid LED pulsing,
-  continuous fog, CO2 + LPG bursts — then mandatory cooldown back to dormant.
+  lighting heartbeat, heavy fog, flame patterns, warning sound. Every
+  eruption passes through it, including manual triggers: nobody can skip
+  the warning. It cannot fizzle; imminent always erupts.
+- **Eruption** (10s): fixed scripted cue timeline — full sound, strobing
+  pars, white crater, constant fog, two CO2 bursts — then mandatory
+  cooldown back to dormant.
+
+Flame patterns are morse-like strings (`.` dot, `-` dash) picked at random
+per move, no back-to-back repeats, more flame the nearer the eruption.
+Each plays at the start of the new phase, with every light flaring orange
+on each pulse — except the imminent → eruption finale, which plays at the
+end of imminent and finishes 1.5s before the first CO2 burst. An operator
+hold's active → dormant fires nothing; eruption → dormant never fires
+(lingering CO2).
+
+The fogger only fogs while its pump runs, and running the pump cools its
+heater: run it too long and the MK-F01 stops on its own to reheat, which
+DMX cannot report. So each phase's fog is a duty cycle (`fog_on`/`fog_off`)
+sized to stay inside the heater's recovery, keeping it from stalling in the
+eruption.
 
 Transitions:
 
@@ -109,6 +141,7 @@ src/dmx_volcano/
 ├── phases.py            # dormant/active/eruption state machine
 ├── stats.py             # dwell-time distributions
 ├── cues.py              # scripted eruption timeline + CueRunner
+├── flame.py             # flame-ball patterns for transitions + imminent
 ├── events.py            # JSONL event log
 ├── audio.py             # sound pools (per-phase + per-transition) + aux-out playback
 ├── web/                 # FastAPI control page + 2D visualizer
@@ -204,6 +237,9 @@ Sim-first, hardware staged, flame last:
       255) or on/off above a threshold? At 255 and at a mid level: seconds
       of fog before it stalls, and seconds to reheat. Size each phase's
       `fog_on`/`fog_off` from that.
+- [ ] H-E01A pulse floor (supervised, with LPG): the shortest pulse that
+      ignites *every* time, single and back to back in a pattern. Set
+      `safety.MIN_PULSE["flame"]` and `[flame] dot` to it.
 - [ ] Pull the exact DMX channel map from the MK-C09 printed manual.
 - [ ] H-E01A: confirm channel count (2 vs 6) and safety-channel values from its
       manual on arrival.
