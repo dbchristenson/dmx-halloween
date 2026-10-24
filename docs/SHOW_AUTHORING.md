@@ -69,7 +69,7 @@ sound different from a fizzle (`active->dormant`). Unlisted transitions are
 silent.
 
 **Cue sounds** — fired at exact moments inside the eruption timeline (see
-below), e.g. the roar synced to the first flame burst.
+below), e.g. the roar synced to the big CO2 burst.
 
 Files referenced in config but missing from `assets/` are flagged at
 startup (console warning + `audio_missing` log event) and shown with a ⚠ in
@@ -158,9 +158,9 @@ parameters. Entries run in time order regardless of file order.
 
 ```toml
 [[cues.eruption]]
-t = 4.0
+t = 1.0
 action = "co2_burst"
-duration = 1.5
+duration = 0.5
 ```
 
 Action reference:
@@ -168,19 +168,14 @@ Action reference:
 | Action | Params | Notes |
 |---|---|---|
 | `sound` | `file` | plays once from `assets/` |
-| `fog` | `level` (0–255) | holds until the eruption ends |
-| `co2_burst` | `duration` (s) | max 10s, min 5s gap between bursts; consumes tracked CO2 |
-| `flame_burst` | `duration` (s) | max 10s, at most 10s of fire in any 13s window, bursts may not overlap; the safety channel opens at `t` and fire rises 0.5s later (`FLAME_ARM_LEAD`), so the flame itself burns over `[t+0.5, t+0.5+duration)` |
+| `fog` | `level` (0–255) | holds until the eruption ends (overrides `[looks.eruption] fog`) |
+| `co2_burst` | `duration` (s) | max 4s, min 5s gap between bursts; consumes tracked CO2 |
 | `pars` / `fade` | — | currently no-ops; eruption lighting comes from `[looks.eruption]` |
 
 Timing rules to respect (or the gate denies the cue):
 
-- Flame: each burst ≤ **10s**, and the total fire inside *any* 13s window ≤
-  **10s**. Short bursts need no gap between them; a 10s burst must be followed
-  by 3s of no fire. Bursts at `t=5.0` (8s) and `t=14.0` (2s) are legal (fire
-  `[5.5, 13.5)` + `[14.5, 16.5)`: the window ending at 16.5 holds 8 + 2 = 10s);
-  a 3s burst at `t=14.0` is not (window ending 17.5 holds 8 + 3 = 11s).
-- CO2: each burst ≤ **4s**, ≥ **5s** between bursts.
+- CO2: each burst ≤ **4s**, ≥ **5s** from one burst's end to the next one's
+  start. In the 10s eruption that fits two bursts: a pop, then the big one.
 - Keep the last pyro cue comfortably before `eruption_duration` — a permit
   can't outlive its burst, but a cue landing after the phase ends never fires.
 
@@ -193,7 +188,7 @@ before it is `imminent_duration` (30s). Both are plain numbers to edit.
 [phases]
 p_erupt = 0.7             # chance active escalates (vs. fizzling back)
 imminent_duration = 30.0
-eruption_duration = 20.0
+eruption_duration = 10.0
 cooldown = 60.0           # quiet time after each eruption
 
 [phases.dwell.dormant]

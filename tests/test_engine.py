@@ -52,48 +52,25 @@ def test_manual_trigger_passes_through_imminent(engine):
     assert engine.machine.phase is Phase.ERUPTION
 
 
-def test_armed_eruption_fires_flame_only_in_cue_windows(engine):
+def test_eruption_fires_co2_only_in_cue_windows(engine):
     engine.gate.arm()
     engine.machine.request_eruption()
     E = engine.machine.config.imminent_duration
-    frames = run(engine, 0.0, E + 21.0)
-
-    safety_ch = engine.rig["flame"].channel("safety")
-    fire_ch = engine.rig["flame"].channel("fire")
+    frames = run(engine, 0.0, E + 12.0)
     co2_ch = engine.rig["co2"].channel("jet")
-
-    # Cue timeline: flame bursts at t=5 and t=9 (0.8s), co2 at t=4 (1.5s),
-    # all relative to eruption start at t=E. A flame cue opens the safety
-    # channel at its t and raises fire FLAME_ARM_LEAD later, so fire burns
-    # over [t+lead, t+lead+0.8) while safety holds over [t, t+lead+0.8).
-    L = FLAME_ARM_LEAD
-    fire_windows = ((E + 5.0 + L, E + 5.8 + L), (E + 9.0 + L, E + 9.8 + L))
-    arm_windows = ((E + 5.0, E + 5.8 + L), (E + 9.0, E + 9.8 + L))
-    flame_edges = tuple(e for w in fire_windows + arm_windows for e in w)
-    co2_edges = (E + 4.0, E + 5.5)
+    windows = [(E + a, E + b) for a, b in engine.co2_windows]
+    edges = tuple(e for w in windows for e in w)
     for t, frame in frames:
-        fire = frame[fire_ch - 1]
-        if not near_edge(t, flame_edges):
-            if any(a <= t < b for a, b in fire_windows):
-                assert fire == 255, f"flame should burn at t={t:.2f}"
-                assert frame[safety_ch - 1] == FLAME_SAFETY_ARM_VALUE
-            elif any(a <= t < b for a, b in arm_windows):
-                # the lead: safety open, fire still clamped
-                assert fire == 0, f"fire rose before the arm lead at t={t:.2f}"
-                assert frame[safety_ch - 1] == FLAME_SAFETY_ARM_VALUE
-            else:
-                assert fire == 0, f"flame leaked at t={t:.2f}"
-                assert frame[safety_ch - 1] == 0
-        if not near_edge(t, co2_edges) and not (E + 4.0 <= t < E + 5.5):
-            assert frame[co2_ch - 1] == 0, f"co2 leaked at t={t:.2f}"
-
-    assert any(f[co2_ch - 1] == 255 for t, f in frames if E + 4.0 <= t < E + 5.5)
+        if near_edge(t, edges):
+            continue
+        expect = 255 if any(a <= t < b for a, b in windows) else 0
+        assert frame[co2_ch - 1] == expect, f"co2 wrong at t={t:.2f}"
 
 
 def test_disarmed_eruption_never_puts_pyro_on_the_wire(engine):
     engine.machine.request_eruption()
     E = engine.machine.config.imminent_duration
-    frames = run(engine, 0.0, E + 21.0)
+    frames = run(engine, 0.0, E + 12.0)
     pyro = engine.rig.pyro_channels()
     for t, frame in frames:
         for ch in pyro:
@@ -103,39 +80,28 @@ def test_disarmed_eruption_never_puts_pyro_on_the_wire(engine):
     assert any(f[fog_ch - 1] == 255 for _, f in frames)
 
 
-def test_disarm_mid_burst_kills_flame_next_frame(engine):
-    engine.gate.arm()
-    engine.machine.request_eruption()
-    E = engine.machine.config.imminent_duration
-    t = E + 5.0 + FLAME_ARM_LEAD + 0.2  # into the first flame burst's fire window
-    run(engine, 0.0, t)
-    fire_ch = engine.rig["flame"].channel("fire")
-    assert engine.driver.last_frame[fire_ch - 1] == 255
-    engine.gate.disarm()
-    engine.step(t + DT)
-    assert engine.driver.last_frame[fire_ch - 1] == 0
-
-
 def test_eruption_count_cooldown_and_co2_usage(engine):
     engine.gate.arm()
     engine.machine.request_eruption()
     E = engine.machine.config.imminent_duration
-    run(engine, 0.0, E + 25.0)  # imminent + eruption (20s) ends into cooldown
+    run(engine, 0.0, E + 12.0)  # imminent + eruption (10s) ends into cooldown
     assert engine.state.eruption_count == 1
-    # The 1.5s CO2 cue burned duration * rate.
-    assert engine.co2.used_kg == pytest.approx(1.5 * engine.co2.rate_kg_per_s)
+    # Both CO2 cues burned duration * rate.
+    total = sum(b - a for a, b in engine.co2_windows)
+    assert engine.co2.used_kg == pytest.approx(total * engine.co2.rate_kg_per_s)
     engine.machine.request_eruption()  # inside 60s cooldown -> ignored
-    run(engine, E + 25.0, E + 30.0)
+    run(engine, E + 12.0, E + 17.0)
     assert engine.state.eruption_count == 1
 
 
 def test_co2_alert_marks_once_when_threshold_crossed(engine):
     engine.gate.arm()
-    # Shrink the tank so one 1.5s cue crosses the warn threshold.
-    engine.co2.capacity_kg = 1.5 * engine.co2.rate_kg_per_s * 1.1
+    # Shrink the tank so the first CO2 cue crosses the warn threshold.
+    start, end = engine.co2_windows[0]
+    engine.co2.capacity_kg = (end - start) * engine.co2.rate_kg_per_s * 1.1
     engine.machine.request_eruption()
     E = engine.machine.config.imminent_duration
-    run(engine, 0.0, E + 6.0)
+    run(engine, 0.0, E + end + 0.5)
     assert engine.co2.alerted is True
     assert engine.co2.remaining_fraction <= engine.co2.warn_remaining_fraction
 
@@ -160,7 +126,7 @@ def test_overlong_pyro_cue_refused_at_startup_even_in_rehearsal(tmp_path, monkey
     monkeypatch.chdir(tmp_path)
     cfg = tmp_path / "show.toml"
     cfg.write_text(
-        CONFIG.read_text().replace("duration = 0.8", "duration = 10.5", 1)
+        CONFIG.read_text().replace("duration = 2.0", "duration = 4.5", 1)
     )
     with pytest.raises(ValueError, match="duration must be"):
         build_engine(cfg, FakeDriver())
@@ -170,6 +136,7 @@ def test_overlong_pyro_cue_refused_at_startup_even_in_rehearsal(tmp_path, monkey
     "cue",
     [
         {"t": 1.0, "action": "flame"},  # unknown action
+        {"t": 1.0, "action": "flame_burst", "duration": 0.5},  # eruption is CO2 only
         {"t": 1.0, "action": "co2_burst"},  # missing duration
         {"t": 1.0, "action": "fog", "level": 300},
         {"t": -1.0, "action": "pars"},

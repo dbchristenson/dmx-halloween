@@ -239,8 +239,6 @@ class ShowEngine:
             )
         elif cue.action == "co2_burst":
             granted = self._pyro_burst("co2", cue.params["duration"], now)
-        elif cue.action == "flame_burst":
-            granted = self._pyro_burst("flame", cue.params["duration"], now)
         # "pars"/"fade" are handled by the phase render for now.
 
         self.log.write("cue", t=cue.t, action=cue.action, granted=granted, **cue.params)
@@ -248,8 +246,8 @@ class ShowEngine:
     def _pyro_burst(
         self, kind: str, duration: float, now: float, *, track_co2: bool = True
     ) -> bool:
-        """The one path that puts pyro on the wire — used by eruption cues
-        and manual test fires alike, always via a SafetyGate permit."""
+        """The one path that puts a single burst on the wire — eruption CO2
+        cues and manual test fires alike, always via a SafetyGate permit."""
         if kind == "co2":
             ch = self.rig["co2"].channel("jet")
             granted = self.gate.request_burst("co2", {ch}, duration, now=now)

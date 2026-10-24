@@ -172,3 +172,10 @@ def test_the_crater_hits_after_the_par_sweep(looks):
     assert all(d == 0 for d, _ in crater(u)[:2])
     render(Phase.ACTIVE, RIG, u, 100.0, gap + 6 * step + 0.001, looks)
     assert all(d >= 250 for d, _ in crater(u)[:2])
+
+
+def test_eruption_fog_is_constant_full(looks):
+    u = Universe()
+    for since in (0.0, 3.0, 9.9):
+        render(Phase.ERUPTION, RIG, u, since, since, looks)
+        assert u[FOGGER.channel("fog")] == 255

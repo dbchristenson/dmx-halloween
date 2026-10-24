@@ -12,8 +12,8 @@
 #     cycle takes under 30 seconds.
 #   - dormant/active dwells are ~infinite: NOTHING transitions on its own;
 #     every phase change during a bench session is an explicit operator act.
-#   - One 0.5s flame cue, dry-fired (no LPG) — flame machine is on the chain
-#     as of 2026-09-11; the H-E01A safety channel is driven only under a
+#   - No flame in the show cycle (the eruption is CO2 only); fire it from the
+#     test console. The H-E01A safety channel is driven only under a
 #     SafetyGate permit, identical to the show path.
 
 [show]
@@ -56,16 +56,14 @@ fog = 0
 [looks.imminent]
 fog = 0
 
-# Eruption timeline, bench edition: one short CO2 pop, one short flame pop,
-# PAR strobe from the phase render. No fog, no sound assets required.
+[looks.eruption]
+fog = 0
+
+# Eruption timeline, bench edition: one short CO2 pop, PAR strobe from the
+# phase render. No fog, no sound assets required.
 [[cues.eruption]]
 t = 2.0
 action = "co2_burst"
-duration = 0.5
-
-[[cues.eruption]]
-t = 5.0
-action = "flame_burst"
 duration = 0.5
 
 # Fixture addressing — the BENCH CHAIN as physically wired (2026-09-11), NOT

@@ -9,7 +9,7 @@ log_dir = "logs"
 [phases]
 p_erupt = 0.7          # from active: escalate vs. fizzle back to dormant
 imminent_duration = 30.0  # fixed warning phase before every eruption
-eruption_duration = 20.0
+eruption_duration = 10.0  # CO2 is the scarce resource: two bursts fill it
 cooldown = 60.0
 
 [phases.dwell.dormant]
@@ -153,6 +153,7 @@ strobe_hz = 8.0                            # each par strobes +/-30% around this
 palette = [[255, 60, 0], [255, 0, 0]]      # each flash picks orange or red
 flash = [0.25, 1.0]                        # random brightness range per flash
 hit_color = [255, 255, 255]
+fog = 255                                  # full and constant: 10s only
 
 [looks.eruption.caldera]
 palette = [[255, 255, 255]]                # all white: light up the CO2
@@ -165,34 +166,23 @@ step = 0.07    # delay between pars in the sweep (par1 -> par6)
 decay = 0.9    # each par's flash fades into the new look over this long
 
 # --- Eruption cue timeline ----------------------------------------------
-# t = seconds from eruption start. Pyro cues must respect the safety gate
-# (flame: <=10s bursts, <=10s of fire per 13s window; co2: <=4s bursts, >=5s gap) or they are
-# DENIED. A flame cue opens the H-E01A safety channel at t and fires 0.5s
-# later (the machine ignores fire unless safety is already open), so the
-# flame is visible over [t+0.5, t+0.5+duration).
-# DENIED and logged with granted=false. The gate wins, by design.
+# t = seconds from eruption start. The eruption is CO2 + fog only. CO2 cues
+# must respect the safety gate (<=4s bursts, >=5s from one burst's end to
+# the next one's start — MOKA's MK-C09 limit) or they are DENIED and logged
+# with granted=false. The gate wins, by design. In a 10s eruption that
+# leaves room for two bursts: a pop, then the big one.
 # The eruption entry roar comes from [audio.phases.eruption] start; use a
 # sound cue here only for audio sync'd to a mid-timeline moment.
 
 [[cues.eruption]]
-t = 2.0
-action = "fog"
-level = 255
-
-[[cues.eruption]]
-t = 4.0
+t = 1.0
 action = "co2_burst"
-duration = 1.5
+duration = 0.5           # the pop
 
 [[cues.eruption]]
-t = 5.0
-action = "flame_burst"
-duration = 0.8
-
-[[cues.eruption]]
-t = 9.0
-action = "flame_burst"
-duration = 0.8
+t = 6.5
+action = "co2_burst"
+duration = 2.0           # the big one: ends at 8.5s, lights white-out over it
 
 # --- Fixtures -----------------------------------------------------------
 # Channel maps are PROVISIONAL until confirmed against printed manuals

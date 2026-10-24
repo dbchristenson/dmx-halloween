@@ -1,5 +1,8 @@
 """Scripted cue timelines.
 
+The eruption carries no flame: the CO2 would smother it, and lingering CO2
+can stop it igniting (flame belongs to transitions and imminent — flame.py).
+
 Eruption is deliberately NOT stochastic: it is a deterministic list of
 (time, action) pairs so timing precision and safety bounds are auditable.
 Actions describe *intent*; the show loop translates them into channel values
@@ -14,7 +17,7 @@ from .safety import MAX_BURST
 @dataclass(frozen=True)
 class Cue:
     t: float  # seconds from sequence start
-    action: str  # e.g. "sound", "pars", "fog", "co2_burst", "flame_burst"
+    action: str  # e.g. "sound", "pars", "fog", "co2_burst"
     params: dict = field(default_factory=dict)
 
 
@@ -36,7 +39,6 @@ ACTIONS = {
     "sound": ("file", None),
     "fog": ("level", None),
     "co2_burst": ("duration", "co2"),
-    "flame_burst": ("duration", "flame"),
     "pars": (None, None),
     "fade": (None, None),
 }
@@ -64,17 +66,11 @@ def validate_timeline(timeline: list[Cue]) -> None:
 
 
 # Fallback timeline if config has no [[cues.eruption]] — tune in config, not
-# here. Pyro cues must respect safety.MAX_BURST, MIN_GAP (measured
-# burst-end to burst-start) and FIRE_WINDOW or the gate will deny them —
-# the gate wins.
+# here. CO2 cues must respect safety.MAX_BURST and MIN_GAP (measured
+# burst-end to burst-start) or the gate will deny them — the gate wins.
 ERUPTION = [
-    Cue(0.0, "sound", {"file": "eruption.wav"}),
-    Cue(0.0, "pars", {"color": (255, 30, 0), "strobe_hz": 8}),
-    Cue(2.0, "fog", {"level": 255}),
-    Cue(4.0, "co2_burst", {"duration": 1.5}),
-    Cue(5.0, "flame_burst", {"duration": 0.8}),
-    Cue(9.0, "flame_burst", {"duration": 0.8}),  # >= 3s after first burst ends
-    Cue(12.0, "fade", {"to": "dormant", "over": 8.0}),
+    Cue(1.0, "co2_burst", {"duration": 0.5}),
+    Cue(6.5, "co2_burst", {"duration": 2.0}),  # >= 5s after the pop ends
 ]
 
 

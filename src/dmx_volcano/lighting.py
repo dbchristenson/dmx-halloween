@@ -84,6 +84,7 @@ DEFAULT_LOOKS = {
         "palette": [[255, 60, 0], [255, 0, 0]],
         "flash": [0.25, 1.0],
         "hit_color": [255, 255, 255],
+        "fog": 255,
         "caldera": {"palette": [[255, 255, 255]], "pop_hz": 3.0, "blast_tail": 0.4},
     },
     "transition": {"gap": 0.15, "step": 0.07, "decay": 0.9},
