@@ -93,7 +93,9 @@ on October 30th (cable, terminator, adapter).
 
 - Outdoor-rated extension cords and a **GFCI-protected** circuit/adapter for
   everything in the yard.
-- Fogger is 1500W — give it its own circuit/cord; don't share with the Pi.
+- Fogger is 1500W — give it its own circuit/cord; don't share with the Pi,
+  and never feed it through the flame/CO2 power-through jacks (tried
+  2026-10-23: it hung on `PPPP`, and ~12.5A through those jacks is a heat risk).
 - Outdoor power strip or stake for the PAR cluster.
 - Weather cover for the Pi + Enttec (dry box with cable glands, or at minimum
   a covered tote).

@@ -179,8 +179,12 @@ Sim-first, hardware staged, flame last:
 
 ## Open items
 
-- [x] MK-F01 channel order: 7ch from the MOKA product page (value ranges still
-      to confirm on the bench).
+- [x] MK-F01 channel order: 7ch from the MOKA product page.
+- [x] MK-F01 on its own power (no longer fed through the flame/CO2
+      power-through jacks) and address set to `d300` (2026-10-23).
+- [ ] MK-F01 bench check: it responds to DMX (it showed `PPPP` and ignored
+      DMX while fed through the chain), and strobe/autorun at 0 really
+      mean off.
 - [ ] Pull the exact DMX channel map from the MK-C09 printed manual.
 - [ ] H-E01A: confirm channel count (2 vs 6) and safety-channel values from its
       manual on arrival.
