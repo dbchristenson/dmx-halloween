@@ -48,27 +48,13 @@ state_file = "var/co2_tank.json"
 [alerts]
 phone_numbers = []       # bench: never text anyone
 
-[looks.dormant]
-color = [255, 0, 0]
-dimmer = [60, 100]
-pulse_hz = 0.13
-
+# Looks: show.py/lighting.py defaults (same as show.toml), fogger kept quiet
+# unless tested explicitly.
 [looks.active]
-color = [255, 40, 0]
-dimmer = [120, 200]
-pulse_hz = 0.13
-fog = 0                  # bench: keep the fogger quiet unless tested explicitly
-
-[looks.imminent]
-color = [255, 190, 80]
-dimmer = [0, 255]
-beat_hz = [0.6, 2.5]
 fog = 0
 
-[looks.eruption]
-color = [255, 60, 0]
-dimmer = [40, 255]
-strobe_hz = 8.0
+[looks.imminent]
+fog = 0
 
 # Eruption timeline, bench edition: one short CO2 pop, one short flame pop,
 # PAR strobe from the phase render. No fog, no sound assets required.

@@ -13,7 +13,6 @@ lives in config/show.toml — see docs/SHOW_AUTHORING.md.
 """
 
 import argparse
-import math
 import os
 import random
 import signal
@@ -29,6 +28,7 @@ from .driver.fake import FakeDriver
 from .driver.universe import Universe
 from .events import EventLog
 from .fixtures import Rig, load_rig
+from .lighting import build_looks, render
 from .manual import BurstResult, TestConsole
 from .notify import SmsConfig, send_sms_async, sms_config_from
 from .phases import Phase, PhaseConfig, PhaseMachine, Transition
@@ -45,16 +45,6 @@ FLAME_SAFETY_ARM_VALUE = 130  # H-E01A arm window is 102-153 (manual, 2CH mode)
 # burst opens safety this long before fire; the gate clamps fire until then.
 FLAME_ARM_LEAD = 0.5
 
-# Per-phase lighting parameters; [looks.<phase>] in show.toml overrides keys.
-DEFAULT_LOOKS = {
-    "dormant": {"color": [255, 0, 0], "dimmer": [60, 100], "pulse_hz": 0.13, "fog": 0},
-    "active": {"color": [255, 40, 0], "dimmer": [120, 200], "pulse_hz": 0.13, "fog": 180},
-    # Imminent is the attention signal: hard synchronized heartbeat that
-    # accelerates over the phase, unmistakably different from the breathing.
-    "imminent": {"color": [255, 190, 80], "dimmer": [0, 255], "beat_hz": [0.6, 2.5], "fog": 255},
-    "eruption": {"color": [255, 60, 0], "dimmer": [40, 255], "strobe_hz": 8.0},
-}
-
 
 def build_phase_config(raw: dict) -> PhaseConfig:
     p = raw["phases"]
@@ -67,13 +57,6 @@ def build_phase_config(raw: dict) -> PhaseConfig:
         eruption_duration=p["eruption_duration"],
         cooldown=p["cooldown"],
     )
-
-
-def build_looks(raw: dict) -> dict:
-    looks = {phase: dict(params) for phase, params in DEFAULT_LOOKS.items()}
-    for phase, overrides in raw.get("looks", {}).items():
-        looks.setdefault(phase, {}).update(overrides)
-    return looks
 
 
 class SimClock:
@@ -132,47 +115,6 @@ class EffectOverlay:
                 universe[ch] = value
 
 
-def render(
-    phase: Phase,
-    rig: Rig,
-    universe: Universe,
-    now: float,
-    progress: float,
-    looks: dict,
-) -> None:
-    """Ambient look per phase, parameterized by config. `progress` is the
-    0-1 fraction through fixed-length phases (imminent), 0 elsewhere. Pyro is
-    never written here — only cues (via overlay + gate) touch flame/CO2."""
-    universe.blackout()
-    look = looks[phase.value]
-    lo, hi = look["dimmer"]
-    r, g, b = look["color"]
-
-    if phase is Phase.IMMINENT:
-        f0, f1 = look["beat_hz"]
-        duration = look.get("duration", 30.0)  # injected from imminent_duration
-        # Linear chirp accelerating f0 -> f1: angle(t) = 2pi*(f0*t + (f1-f0)*t^2/2D)
-        angle = 2 * math.pi * duration * (f0 * progress + (f1 - f0) * progress**2 / 2)
-        level = max(0.0, math.sin(angle)) ** 6  # sharp beats, dark gaps
-    elif phase is Phase.ERUPTION:
-        level = 1.0 if int(now * look["strobe_hz"]) % 2 else 0.15
-    else:
-        level = 0.5 + 0.5 * math.sin(now * 2 * math.pi * look["pulse_hz"])
-
-    dimmer = int(lo + (hi - lo) * level)
-    for name, fixture in rig.fixtures.items():
-        if fixture.pyro or "dimmer" not in fixture.channels:
-            continue  # lights only: every RGB par, exterior and caldera
-        universe[fixture.channel("dimmer")] = dimmer
-        universe[fixture.channel("red")] = r
-        universe[fixture.channel("green")] = g
-        universe[fixture.channel("blue")] = b
-
-    fog = look.get("fog", 0)
-    if fog:
-        universe[rig["fogger"].channel("fog")] = fog
-
-
 class ShowEngine:
     """One step() per frame; owns everything between the clock and the wire."""
 
@@ -207,7 +149,13 @@ class ShowEngine:
         self.universe = Universe()
         self.overlay = EffectOverlay()
         self._remote_events: list[tuple[str, dict]] = []
-        self.runner = CueRunner(timeline if timeline is not None else ERUPTION)
+        timeline = timeline if timeline is not None else ERUPTION
+        self.runner = CueRunner(timeline)
+        # The caldera blasts white over each CO2 cue, armed or not, so rehearsal
+        # shows the same look as show night.
+        self.co2_windows = [
+            (c.t, c.t + c.params["duration"]) for c in timeline if c.action == "co2_burst"
+        ]
         self._prev_phase = machine.phase
         machine.on_transition = self._on_transition
 
@@ -256,12 +204,10 @@ class ShowEngine:
                 self.console.last_burst = BurstResult(kind, duration, granted, now)
                 self.log.write("test_burst", burst=kind, duration=duration, granted=granted)
         else:
-            progress = 0.0
-            if phase is Phase.IMMINENT:
-                progress = min(
-                    1.0, (now - self.machine.entered_at) / self.machine.config.imminent_duration
-                )
-            render(phase, self.rig, self.universe, now, progress, self.looks)
+            render(
+                phase, self.rig, self.universe, now, self.machine.elapsed(now), self.looks,
+                self.co2_windows,
+            )
         if self.console is not None:
             self.console.step_holds(
                 now, self.gate.pyro_enabled and self.machine.phase is Phase.DORMANT

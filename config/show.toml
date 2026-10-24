@@ -95,29 +95,74 @@ accent_interval = [6.0, 10.0]
 
 # --- Lighting looks -----------------------------------------------------
 # Per-phase render parameters; anything set here overrides the defaults in
-# show.py DEFAULT_LOOKS. See docs/SHOW_AUTHORING.md.
+# lighting.py DEFAULT_LOOKS. See docs/SHOW_AUTHORING.md.
+
+# Design principles: docs/SHOW_AUTHORING.md section 2. Every light moves on
+# its own. Each phase change blacks out, sweeps a full flash par1 -> par6 in
+# the phase's hit_color (default: its color), then hits the crater last.
+#
+# [looks.<phase>.caldera] = the crater lights + the fogger's LEDs, coloring
+# the smoke. Keys missing there fall back to the phase's own keys.
+# Palettes below: sulfur yellow, barium green, sulfur blue, potassium
+# violet, strontium magenta.
 
 [looks.dormant]
-color = [255, 0, 0]
-dimmer = [60, 100]
-pulse_hz = 0.13
+color = [255, 0, 0]                        # dominant: red
+dimmer = [6, 255]                          # deep lows, full highs
+pulse_hz = 0.13                            # breathing rate; each par strays +/-30%
+accents = [[255, 70, 0], [150, 0, 255]]    # minority drift: orange, purple
+accent_share = 0.3                         # ~fraction of time a par spends accented
+accent_hz = 0.04                           # how often accent episodes come and go
+
+[looks.dormant.caldera]
+color = [0, 60, 255]                       # dominant: sulfur blue, barely glowing
+dimmer = [0, 110]
+pulse_hz = 0.08
+accents = [[150, 0, 255], [80, 255, 0]]    # minority: violet, green
+accent_share = 0.34
+accent_hz = 0.05
 
 [looks.active]
-color = [255, 40, 0]
-dimmer = [120, 200]
-pulse_hz = 0.13
+color = [255, 80, 0]                       # dominant: orange
+dimmer = [20, 255]
+pulse_hz = 0.25
+accents = [[255, 0, 0], [0, 255, 0]]       # minority: red, green
+accent_share = 0.4
+accent_hz = 0.07
 fog = 180
 
+[looks.active.caldera]
+dimmer = [40, 255]
+palette = [[255, 200, 0], [80, 255, 0], [0, 80, 255], [160, 0, 255], [255, 0, 140]]
+hold_s = 3.0                               # each light holds a color ~3s...
+fade = 0.4                                 # ...crossfading over the last 40%
+
 [looks.imminent]
-color = [255, 190, 80]
 dimmer = [0, 255]
 beat_hz = [0.6, 2.5]   # heartbeat accelerates from first to second over the phase
+palette = [[255, 255, 255], [255, 90, 0], [255, 0, 0]]  # each beat picks one per par
+hit_color = [255, 255, 255]
 fog = 255
 
+[looks.imminent.caldera]
+palette = [[255, 200, 0], [80, 255, 0], [0, 80, 255], [160, 0, 255], [255, 0, 140]]  # same cascading heartbeat
+
 [looks.eruption]
-color = [255, 60, 0]
-dimmer = [40, 255]
-strobe_hz = 8.0
+dimmer = [0, 255]
+strobe_hz = 8.0                            # each par strobes +/-30% around this
+palette = [[255, 60, 0], [255, 0, 0]]      # each flash picks orange or red
+flash = [0.25, 1.0]                        # random brightness range per flash
+hit_color = [255, 255, 255]
+
+[looks.eruption.caldera]
+palette = [[255, 255, 255]]                # all white: light up the CO2
+pop_hz = 3.0                               # white pops per second, per light
+blast_tail = 0.4                           # white falls off over this after each CO2 cue
+
+[looks.transition]
+gap = 0.15     # blackout snap at every phase change, seconds
+step = 0.07    # delay between pars in the sweep (par1 -> par6)
+decay = 0.9    # each par's flash fades into the new look over this long
 
 # --- Eruption cue timeline ----------------------------------------------
 # t = seconds from eruption start. Pyro cues must respect the safety gate

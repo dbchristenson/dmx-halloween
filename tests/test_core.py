@@ -9,7 +9,7 @@ import pytest
 from dmx_volcano.driver.universe import Universe
 from dmx_volcano.fixtures import load_rig
 from dmx_volcano.phases import Phase
-from dmx_volcano.show import build_looks, render
+from dmx_volcano.lighting import build_looks, render
 from dmx_volcano.stats import DwellConfig, sample_dwell
 
 CONFIG = Path(__file__).resolve().parents[1] / "config" / "show.toml"
@@ -60,16 +60,16 @@ def test_par_tilts_load_and_rise_around_the_semicircle():
     assert rig["flame"].tilt is None
 
 
-def test_caldera_lights_sit_at_a100_and_a110_and_get_the_phase_look():
+def test_caldera_lights_sit_at_a100_and_a110_and_get_a_crater_look():
     rig = load_rig(CONFIG)
     assert rig["caldera_left"].channel("dimmer") == 100
     assert rig["caldera_right"].channel("dimmer") == 110
     assert rig["caldera_right"].tilt > rig["caldera_left"].tilt  # A110 tilts up more
     universe = Universe()
     looks = build_looks(tomllib.loads(CONFIG.read_text()))
-    render(Phase.DORMANT, rig, universe, 0.0, 0.0, looks)
+    render(Phase.DORMANT, rig, universe, 5.0, 5.0, looks)
     for name in ("caldera_left", "caldera_right"):
-        assert universe[rig[name].channel("red")] > 0
+        assert any(universe[rig[name].channel(c)] for c in ("red", "green", "blue"))
 
 
 @pytest.mark.parametrize("config", ["show.toml", "bench.toml"])

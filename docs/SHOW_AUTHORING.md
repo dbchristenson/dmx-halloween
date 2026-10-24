@@ -86,37 +86,69 @@ see `docs/DEPLOYMENT.md` § Audio out.
 ## 2. Lighting looks
 
 Each phase's ambient lighting is a `[looks.<phase>]` table. Anything you set
-overrides the defaults in `show.py`; anything you omit keeps the default.
+overrides the defaults in `lighting.py`; anything you omit keeps the default.
+`config/show.toml` spells out every key, so start from there.
 
-```toml
-[looks.dormant]
-color = [255, 0, 0]     # RGB 0-255 for all pars
-dimmer = [60, 100]      # brightness floor and ceiling of the pulse
-pulse_hz = 0.13         # breathing speed (cycles/second)
+Design principles. Keep new looks inside these:
 
-[looks.imminent]
-color = [255, 190, 80]
-dimmer = [0, 255]
-beat_hz = [0.6, 2.5]    # heartbeat: starts at 0.6Hz, accelerates to 2.5Hz
-fog = 255               # fogger output during the phase (0 = off)
+- One dominant color sets each phase's mood; a minority of accents adds texture.
+- Nothing moves in unison: every light runs its own rate, offset and choices.
+- Use the whole range: deep lows and full highs.
+- Each phase is faster and hotter than the one before it.
+- Phase changes are events: snap to black, then sweep in.
+- The outer pars frame the volcano and stay warm. The crater is where the
+  eye goes, so it gets the wild color and the white blasts.
 
-[looks.eruption]
-strobe_hz = 8.0         # hard strobe rate
-```
+Every "random" choice (rates, offsets, which accent, each beat's color) is
+a fixed hash of the light and the moment, so the show looks organic but
+tests can pin it down.
 
-Parameter reference:
+There are two groups. The **outer pars** (`par*`) are described below. The
+**caldera** is the crater lights plus the fogger's LEDs, which color the
+smoke. Its keys live in `[looks.<phase>.caldera]`; any key missing there
+falls back to the phase's own.
+
+- **Dormant / active (breathing):** each par breathes at `pulse_hz`, give
+  or take 30%, with its own offset, through the full `dimmer` range. The
+  pars take turns drifting from `color` into one of the `accents`, in a
+  shuffled stagger, so only about `accent_share` of them are accented at
+  any moment.
+- **Imminent (heartbeat):** the beat accelerates over `beat_hz`. Each beat
+  reaches each par at its own random delay, so it ripples across the
+  volcano. Each hit takes a random color from `palette` and a random peak.
+- **Eruption (strobe):** each par strobes at `strobe_hz`, give or take 30%,
+  out of step with the others. Each flash picks a color from `palette` and
+  a brightness within `flash`.
+- **Caldera:** dormant is a low sulfur-blue glow with violet and green
+  accents. Active cycles each crater light through the firework palette
+  in its own order. Imminent uses the same cascading heartbeat as the
+  pars, in firework colors. Eruption is all white to light the CO2: white
+  pops, then solid full white through every CO2 cue window from the
+  timeline, armed or not. The fogger's LEDs have no dimmer, so their
+  color is scaled instead.
+- **Phase change:** every phase entry blacks the outer pars out for
+  `[looks.transition] gap`, then flashes them to full one at a time
+  (par1 to par6, `step` apart) in the phase's `hit_color` (default: its
+  `color`), then the crater last. Each flash decays into the new look over
+  `decay`.
 
 | Key | Phases | Meaning |
 |---|---|---|
-| `color` | all | RGB applied to every par |
+| `color` | dormant, active | dominant RGB |
 | `dimmer` | all | `[min, max]` brightness range |
-| `pulse_hz` | dormant, active | sine "breathing" rate |
+| `pulse_hz` | dormant, active | breathing rate (cycles/second) |
+| `accents` | dormant, active | RGB colors the minority drifts into |
+| `accent_share` | dormant, active | fraction of pars accented at once (0–1) |
+| `accent_hz` | dormant, active | how often each par's accent episode comes around |
 | `beat_hz` | imminent | `[start, end]` accelerating heartbeat rate |
-| `strobe_hz` | eruption | on/off strobe rate |
+| `strobe_hz` | eruption | average strobe rate |
+| `palette` | imminent, eruption | colors each beat or flash picks from |
+| `flash` | eruption | `[min, max]` brightness of a flash, 0–1 |
+| `hit_color` | any | phase-change flash color |
+| `caldera.hold_s` / `caldera.fade` | active | how long each crater light holds a color, and the crossfade share |
+| `caldera.pop_hz` | eruption | white pops per second, per crater light |
+| `caldera.blast_tail` | eruption | white falloff after each CO2 cue, seconds |
 | `fog` | any | constant fogger level for the phase (0–255) |
-
-Per-fixture control (different colors on different pars) isn't exposed in
-config yet — that requires a `render()` change in `show.py`.
 
 ## 3. The eruption cue timeline
 
