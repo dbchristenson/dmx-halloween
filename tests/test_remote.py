@@ -252,7 +252,7 @@ def test_flame_hold_after_short_tap_gets_remaining_budget_without_cooldown(engin
     assert channels(engine, engine.step(.6)) == [255, 130]
     engine.console.end_hold(token)
     assert channels(engine, engine.step(1.5)) == [0, 0]  # fired [0.5, 1.5)
-    assert engine.gate.gap_remaining('flame', 1.5) == 0
+    assert engine.gate.gap_remaining('flame', 1.5) == pytest.approx(0.25)  # only the pulse gap
     token = engine.console.begin_hold('flame')
     engine.console.renew_hold(token)
     engine.step(1.525)

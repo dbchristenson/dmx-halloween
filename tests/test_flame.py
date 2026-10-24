@@ -21,12 +21,12 @@ def planner(cfg: FlameConfig, first_co2: float = 1.0, seed: int = 0) -> FlamePla
 
 
 def test_pattern_parses_dots_dashes_and_ignores_spaces():
-    timing = Timing(dot=0.1, dash=0.3, gap=0.2)
+    timing = Timing(dot=0.15, dash=0.45, gap=0.25)
     assert parse_pattern("- . . -", timing) == parse_pattern("-..-", timing)
     assert parse_pattern("-..-", timing) == pytest.approx(
-        [(0.0, 0.3), (0.5, 0.1), (0.8, 0.1), (1.1, 0.3)]
+        [(0.0, 0.45), (0.7, 0.15), (1.1, 0.15), (1.5, 0.45)]
     )
-    assert length(parse_pattern("-..-", timing)) == pytest.approx(1.4)
+    assert length(parse_pattern("-..-", timing)) == pytest.approx(1.95)
 
 
 @pytest.mark.parametrize("pattern", ["", "  ", ".x-", "SOS"])
@@ -37,7 +37,13 @@ def test_bad_patterns_are_refused(pattern):
 
 def test_dot_below_the_gate_floor_is_refused_at_load():
     with pytest.raises(ValueError, match="outside"):
-        FlameConfig.from_config({"dot": 0.05, "imminent": {"patterns": ["."]}})
+        FlameConfig.from_config({"dot": 0.1, "imminent": {"patterns": ["."]}})
+
+
+def test_gap_too_tight_to_ignite_is_refused_at_load():
+    with pytest.raises(ValueError, match="fail to ignite"):
+        FlameConfig.from_config({"gap": 0.0, "imminent": {"patterns": ["..."]}})
+    FlameConfig.from_config({"gap": 0.0, "imminent": {"patterns": ["-"]}})  # one pulse: no gap
 
 
 @pytest.mark.parametrize("key", ["eruption->dormant", "dormant->eruption", "active"])

@@ -195,26 +195,34 @@ def test_full_flame_burst_needs_3s_rest_then_fire_rolls_back_in():
     gate.arm()
     assert gate.request_burst("flame", {FLAME_FIRE}, 10.0, now=0.0)  # [0, 10)
     # Any fire before t=13 would put >10s inside the 13s window ending with it.
-    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.1, now=10.0)
-    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.1, now=12.9)
+    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.15, now=10.0)
+    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.15, now=12.85)
     assert gate.gap_remaining("flame", now=10.0) == pytest.approx(3.0, abs=1e-6)
     # From t=13 the old burst rolls out of the window as fast as new fire
     # rolls in: window ending 13+d holds (10 - d) old + d new = 10s.
     assert gate.request_burst("flame", {FLAME_FIRE}, 2.0, now=13.0)  # [13, 15)
-    assert gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=15.0)
-    # Same again: fire may continue until 10s are back-to-back (13 -> 23),
-    # i.e. sustained use settles into 10s on / 3s off.
-    assert gate.fire_budget("flame", 15.5) == pytest.approx(7.5, abs=1e-6)
+    assert gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=15.25)  # after the pulse gap
+    # Same again: fire may continue until the window holds 10s again
+    # (2.5s booked since t=13), i.e. sustained use settles into 10s on / 3s off.
+    assert gate.fire_budget("flame", 16.0) == pytest.approx(7.5, abs=1e-6)
 
 
-def test_short_flame_taps_need_no_gap_until_budget_is_spent():
+def test_short_flame_taps_need_only_the_pulse_gap_until_budget_is_spent():
     gate = armable_gate()
     gate.arm()
-    for start in (0.0, 2.0, 4.0, 6.0, 8.0):
+    for start in (0.0, 2.25, 4.5, 6.75, 9.0):
         assert gate.request_burst("flame", {FLAME_FIRE}, 2.0, now=start)
-    # 10s fired in [0, 10); the next fire must wait until t=13.
-    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=10.0)
+    # 10s fired by t=11; a window must shed 0.5s of [0, 2) first: t=13.
+    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=11.25)
     assert gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=13.0)
+
+
+def test_flame_bursts_closer_than_the_pulse_gap_are_denied():
+    gate = armable_gate()
+    gate.arm()
+    assert gate.request_burst("flame", {FLAME_FIRE}, 1.0, now=0.0)  # [0, 1)
+    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=1.0 + MIN_GAP["flame"] - 0.05)
+    assert gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=1.0 + MIN_GAP["flame"])
 
 
 def test_overlapping_flame_bursts_are_denied():
@@ -261,10 +269,10 @@ def test_ending_flame_early_books_only_actual_fire():
     frame = frame_with_fire()
     gate.clamp(frame, now=1.5)
     assert frame[FLAME_FIRE - 1] == 0
-    # Only 1s was fired, so 9s more is available immediately.
-    assert gate.fire_budget("flame", 1.0) == pytest.approx(9.0, abs=1e-6)
-    assert gate.request_burst("flame", {FLAME_FIRE}, 9.0, now=1.0)
-    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=10.0)
+    # Only 1s was fired, so 9s more is available after the pulse gap.
+    assert gate.fire_budget("flame", 1.25) == pytest.approx(9.0, abs=1e-6)
+    assert gate.request_burst("flame", {FLAME_FIRE}, 9.0, now=1.25)
+    assert not gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=10.5)
 
 
 def test_disarm_does_not_reset_the_flame_budget():
@@ -309,12 +317,12 @@ def test_sequence_over_budget_is_denied_whole_and_books_nothing():
     gate.arm()
     assert gate.request_burst("flame", {FLAME_FIRE}, 9.0, now=0.0)  # [0, 9)
     # 0.5 + 0.8 of fire: the second pulse would break the 13s budget.
-    assert not gate.request_sequence("flame", {FLAME_FIRE}, [(0.0, 0.5), (1.0, 0.8)], now=9.0)
+    assert not gate.request_sequence("flame", {FLAME_FIRE}, [(0.0, 0.5), (1.0, 0.8)], now=9.25)
     frame = frame_with_fire()
-    gate.clamp(frame, now=9.2)
+    gate.clamp(frame, now=9.4)
     assert frame[FLAME_FIRE - 1] == 0
     # Nothing was booked: the first pulse alone still fits.
-    assert gate.request_burst("flame", {FLAME_FIRE}, 1.0, now=9.0)
+    assert gate.request_burst("flame", {FLAME_FIRE}, 1.0, now=9.25)
 
 
 def test_pulse_shorter_than_min_pulse_or_out_of_order_raises():
@@ -322,8 +330,10 @@ def test_pulse_shorter_than_min_pulse_or_out_of_order_raises():
     gate.arm()
     with pytest.raises(ValueError, match="outside"):
         gate.request_burst("flame", {FLAME_FIRE}, MIN_PULSE["flame"] / 2, now=0.0)
-    with pytest.raises(ValueError, match="overlap"):
+    with pytest.raises(ValueError, match="apart"):
         gate.request_sequence("flame", {FLAME_FIRE}, [(0.0, 0.5), (0.3, 0.2)], now=0.0)
+    with pytest.raises(ValueError, match="apart"):  # touching pulses: the third went unlit
+        gate.request_sequence("flame", {FLAME_FIRE}, [(0.0, 0.15), (0.15, 0.15)], now=0.0)
 
 
 def test_flame_locked_out_after_co2():

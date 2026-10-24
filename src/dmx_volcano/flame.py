@@ -26,7 +26,7 @@ repeats the previous pick while the pool has alternatives.
 import random
 from dataclasses import dataclass, field
 
-from .safety import FIRE_WINDOW, MAX_BURST, MIN_PULSE
+from .safety import FIRE_WINDOW, MAX_BURST, MIN_GAP, MIN_PULSE
 
 # The moves the phase machine can make that may carry flame.
 MOVES = {
@@ -67,8 +67,11 @@ def parse_pattern(pattern: str, timing: Timing) -> list[tuple[float, float]]:
                 f"flame pulse of {duration}s outside "
                 f"{MIN_PULSE['flame']}-{MAX_BURST['flame']}s"
             )
-    if timing.gap < 0:
-        raise ValueError("flame gap must be >= 0")
+    if len(pulses) > 1 and timing.gap + 1e-9 < MIN_GAP["flame"]:
+        raise ValueError(
+            f"flame gap of {timing.gap}s is under {MIN_GAP['flame']}s: "
+            "back-to-back pulses fail to ignite"
+        )
     if sum(d for _, d in pulses) > FIRE_WINDOW["flame"][1]:
         raise ValueError(f"flame pattern {pattern!r} exceeds the fire budget on its own")
     return pulses

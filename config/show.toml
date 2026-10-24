@@ -204,9 +204,10 @@ tail = 0.3              # ...and fades back over this long
 # the crater and can stop the flame igniting, so the gate also refuses
 # flame for 60s after any CO2 burst.
 #
-# dot/dash are PLACEHOLDERS: the bench finds the shortest pulse that ignites
-# every time, back to back (safety.MIN_PULSE). A pulse that fails to ignite
-# releases unburnt LPG into the crater.
+# Bench 2026-10-24: 0.15s pulses with 0.25s gaps light every time; that is
+# also the gate's floor (safety.MIN_PULSE / MIN_GAP). With no gap, the third
+# pulse failed to light — a pulse that fails releases unburnt LPG into the
+# crater for the next one to ignite all at once.
 
 [flame]
 dot = 0.15

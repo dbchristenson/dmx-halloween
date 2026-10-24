@@ -32,8 +32,8 @@ Invariants enforced here (see DESIGN.md "Safety invariants"):
   clamp() that was mid-way through rebuilding the permit list.
 
 Show activation limits: flame <= 10s, CO2 <= 4s.
-Flame: at most 10s of fire in any 13s window, no fixed gap; pulses >= 0.1s;
-none within 60s after CO2.
+Flame: at most 10s of fire in any 13s window; pulses >= 0.15s and >= 0.25s
+apart; none within 60s after CO2.
 CO2: minimum 5s gap (MOKA MK-C09 product page: "two jet time intervals
 cannot be short by 5 seconds").
 """
@@ -44,14 +44,17 @@ from dataclasses import dataclass, field
 
 # Per-fixture operational limits, seconds.
 MAX_BURST = {"flame": 10.0, "co2": 4.0}
-MIN_GAP = {"flame": 0.0, "co2": 5.0}
+# Flame's gap applies between pulses inside a pattern as well as between
+# bursts: on the 2026-10-24 bench, three 0.15s pulses with no gap left the
+# third unlit (unburnt gas, below); 0.25s gaps lit every pulse.
+MIN_GAP = {"flame": 0.25, "co2": 5.0}
 # kind -> (window seconds, max fire seconds inside any such window).
 FIRE_WINDOW = {"flame": (13.0, 10.0)}
 # Shortest pulse the gate grants. A pulse shorter than the H-E01A reliably
 # ignites releases unburnt LPG, which is heavier than air and pools in the
-# crater, and the next pulse lights the whole cloud. PROVISIONAL: raise this
-# to the bench-verified floor (DESIGN.md open items).
-MIN_PULSE = {"flame": 0.1, "co2": 0.0}
+# crater, and the next pulse lights the whole cloud. Bench 2026-10-24: 0.1s
+# lit but weakly, 0.15s lit cleanly every time.
+MIN_PULSE = {"flame": 0.15, "co2": 0.0}
 # CO2 leaves the cannon cold and ~1.5x heavier than air: after the visible
 # plume clears it still pools in the crater bowl around the flame head, where
 # it can stop the flame from igniting. No published dissipation figure exists,
@@ -212,13 +215,18 @@ class SafetyGate:
         if not pulses:
             raise ValueError("a sequence needs at least one pulse")
         for (offset, duration), prev in zip(pulses, [None, *pulses]):
-            if not MIN_PULSE[kind] <= duration <= MAX_BURST[kind]:
+            if not MIN_PULSE[kind] - _EPS <= duration <= MAX_BURST[kind]:
                 raise ValueError(
                     f"{kind} pulse of {duration}s outside "
                     f"{MIN_PULSE[kind]}-{MAX_BURST[kind]}s"
                 )
-            if offset < (0.0 if prev is None else prev[0] + prev[1]):
-                raise ValueError(f"{kind} pulses must be in order and must not overlap")
+            if prev is None:
+                if offset < 0:
+                    raise ValueError(f"{kind} pulse offsets must be >= 0")
+            elif offset + _EPS < prev[0] + prev[1] + MIN_GAP[kind]:
+                raise ValueError(
+                    f"{kind} pulses must be in order and at least {MIN_GAP[kind]}s apart"
+                )
         if arm_lead < 0:
             raise ValueError(f"arm_lead must be >= 0, got {arm_lead}")
         with self._lock:

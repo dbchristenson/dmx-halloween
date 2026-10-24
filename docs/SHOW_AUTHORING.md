@@ -197,8 +197,10 @@ rest = [1.0, 2.5]        # random pause between patterns
   holds it to the last; fire rises only inside a pulse. The gate grants the
   whole pattern or none of it, and counts every pulse toward the flame
   budget (10s of fire per 13s).
-- Every pulse must be at least `safety.MIN_PULSE` (0.1s until the bench
-  sets it). A pulse too short to ignite releases unburnt gas.
+- Every pulse must be at least 0.15s (`safety.MIN_PULSE`) and at least
+  0.25s after the previous one (`safety.MIN_GAP`), both from the bench:
+  shorter pulses lit weakly, and back-to-back pulses left the third unlit.
+  A pulse that fails to ignite releases unburnt gas.
 
 To try a pattern on the hardware, use the test console's **Fire pattern**
 row: type the pattern and set dot/dash/gap there, without editing config.

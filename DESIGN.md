@@ -44,8 +44,8 @@ These are non-negotiable and reviewed against every change:
    cannot be short by 5 seconds"), siphon/dip-tube tank required, 3m
    clearance in spray direction.
    **Flame limits:** bursts ≤10s, and at most 10s of fire in any rolling 13s
-   window (sustained use settles at 10s on / 3s off). No fixed gap between
-   bursts; an early release books only actual fire. Raised from 3s max + 3s
+   window (sustained use settles at 10s on / 3s off), and ≥0.25s between
+   any two pulses or bursts; an early release books only actual fire. Raised from 3s max + 3s
    gap after the 2026-10 supervised bench test. A flame *pattern* is one
    gate grant: safety held open across it, fire only inside each pulse,
    granted whole or not at all.
@@ -242,9 +242,10 @@ Sim-first, hardware staged, flame last:
       128 clearly differ; 255 adds less, possibly a part-cooled block). At
       255: ~14s continuous, then ~45s to reheat. Phase duty cycles sized so
       the eruption enters with ~12s of full fog banked.
-- [ ] H-E01A pulse floor (supervised, with LPG): the shortest pulse that
-      ignites *every* time, single and back to back in a pattern. Set
-      `safety.MIN_PULSE["flame"]` and `[flame] dot` to it.
+- [x] H-E01A pulse floor (2026-10-24, supervised, with LPG): 0.1s lit
+      weakly, 0.15s lit cleanly every time (`MIN_PULSE` = 0.15). Three
+      0.15s pulses with no gap left the third unlit; 0.25s gaps lit every
+      pulse (`MIN_GAP` = 0.25). Shorter gaps (0.15-0.2s) untested.
 - [ ] CO2 seconds per tank, from the rehearsal night; set `rate_kg_per_s`.
 - [ ] Check all four CO2 tanks are siphon (dip-tube) tanks, stood upright.
 - [ ] Pull the exact DMX channel map from the MK-C09 printed manual.
