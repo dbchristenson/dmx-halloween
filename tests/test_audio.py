@@ -260,7 +260,7 @@ def test_engine_starts_dormant_bed_and_swaps_on_transition(
     eng.machine.start(0.0)
     eng.step(0.0)  # startup: no transition, but the dormant bed must begin
     assert player_log[0].name.startswith("dormant_loop_")
-    eng.step(601.0)  # past the dormant dwell ceiling: dormant -> active
+    eng.step(781.0)  # past the dormant dwell ceiling: dormant -> active
     assert player_log[0].terminated  # old bed stopped
     assert player_log[-1].name.startswith("active_loop_")
 

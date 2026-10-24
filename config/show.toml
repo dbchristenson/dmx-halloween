@@ -12,11 +12,13 @@ imminent_duration = 30.0  # fixed warning phase before every eruption
 eruption_duration = 10.0  # CO2 is the scarce resource: two bursts fill it
 cooldown = 60.0
 
+# Tuned for ~5 automatic eruptions/hour (mean dormant ~390s, active ~80s,
+# 70% escalate, +40s imminent/eruption). Manual triggers come on top.
 [phases.dwell.dormant]
-t_min = 120.0
-t_max = 600.0
+t_min = 180.0
+t_max = 780.0
 k = 2.0                # Weibull shape > 1: rising hazard
-scale = 300.0
+scale = 430.0
 
 [phases.dwell.active]
 t_min = 30.0
@@ -25,13 +27,17 @@ k = 2.0
 scale = 90.0
 
 # --- CO2 tank tracking --------------------------------------------------
-# rate_kg_per_s is a PLACEHOLDER: measure it (weigh tank, timed 4s burst,
-# weigh again) and update. Usage persists in state_file across restarts;
-# reset via the web UI when you swap tanks.
+# PLACEHOLDERS from MOKA's MK-C09 FAQ: a 40L cylinder holds ~23 kg and
+# sprays for 40-50s, i.e. ~0.5 kg/s. Our tanks are unweighed. The rehearsal
+# night measures it: the log's granted co2_burst durations summed over one
+# tank give seconds/tank; set rate_kg_per_s = capacity_kg / that.
+# Budget: 5 eruptions/h x 4h x 4 nights = 80 eruptions; at 2.5s of CO2 per
+# eruption that is 200s of spray. Usage persists in state_file across
+# restarts; reset via the web UI when you swap tanks.
 
 [co2]
-capacity_kg = 9.0             # 20 lb siphon tank ~= 9 kg liquid CO2
-rate_kg_per_s = 0.35          # MEASURE ME
+capacity_kg = 23.0            # 40L / 50 lb siphon cylinder, per MOKA FAQ
+rate_kg_per_s = 0.5           # MEASURE ME (rehearsal night)
 warn_remaining_fraction = 0.15
 state_file = "var/co2_tank.json"
 

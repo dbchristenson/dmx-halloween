@@ -247,11 +247,14 @@ eruption_duration = 10.0
 cooldown = 60.0           # quiet time after each eruption
 
 [phases.dwell.dormant]
-t_min = 120.0             # hard floor, seconds
-t_max = 600.0             # hard ceiling
+t_min = 180.0             # hard floor, seconds
+t_max = 780.0             # hard ceiling
 k = 2.0                   # Weibull shape; >1 = more likely as time passes
-scale = 300.0             # roughly "typical" dwell, seconds
+scale = 430.0             # roughly "typical" dwell, seconds
 ```
+
+These values give about 5 automatic eruptions an hour, the CO2 budget's
+target; manual triggers come on top.
 
 To make eruptions more frequent: lower `scale` values and/or raise
 `p_erupt`. After a night, compare the log's `sampled_dwell` vs. manual

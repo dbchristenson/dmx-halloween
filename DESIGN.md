@@ -197,7 +197,12 @@ dwell distributions, eruptions/hour, manual-vs-auto ratio.
 ## CO2 tracking & alerts
 
 Every granted CO2 burst consumes `duration x rate_kg_per_s` (rate must be
-measured: weigh tank, timed burst, weigh again). Usage persists in
+measured: weigh tank, timed burst, weigh again — or, without a scale, sum
+one tank's granted CO2 seconds on the rehearsal night). Budget: 5
+eruptions/hour × 4h × 4 nights = 80 eruptions; at 2.5s of CO2 each that is
+200s of spray. MOKA's FAQ puts a 40L (~23kg) cylinder at 40–50s of spray,
+and we have four large tanks, so the rehearsal decides whether the
+per-eruption CO2 or the pacing has to give. Usage persists in
 `var/co2_tank.json` — restarts never "refill" the tank; only the web UI's
 tank-reset does. When remaining capacity crosses the warn threshold, one SMS
 per tank goes to the hardcoded operator numbers in config (Twilio; creds via
@@ -240,6 +245,8 @@ Sim-first, hardware staged, flame last:
 - [ ] H-E01A pulse floor (supervised, with LPG): the shortest pulse that
       ignites *every* time, single and back to back in a pattern. Set
       `safety.MIN_PULSE["flame"]` and `[flame] dot` to it.
+- [ ] CO2 seconds per tank, from the rehearsal night; set `rate_kg_per_s`.
+- [ ] Check all four CO2 tanks are siphon (dip-tube) tanks, stood upright.
 - [ ] Pull the exact DMX channel map from the MK-C09 printed manual.
 - [ ] H-E01A: confirm channel count (2 vs 6) and safety-channel values from its
       manual on arrival.
