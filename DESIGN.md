@@ -235,13 +235,13 @@ Sim-first, hardware staged, flame last:
 - [x] MK-F01 channel order: 7ch from the MOKA product page.
 - [x] MK-F01 on its own power (no longer fed through the flame/CO2
       power-through jacks) and address set to `d300` (2026-10-23).
-- [ ] MK-F01 bench check: it responds to DMX (it showed `PPPP` and ignored
-      DMX while fed through the chain), and strobe/autorun at 0 really
-      mean off.
-- [ ] MK-F01 fog bench: is the fog channel proportional (compare 64 / 128 /
-      255) or on/off above a threshold? At 255 and at a mid level: seconds
-      of fog before it stalls, and seconds to reheat. Size each phase's
-      `fog_on`/`fog_off` from that.
+- [x] MK-F01 answers DMX on its own power (2026-10-24: ran the show's
+      dormant fog cycle after a Pi reboot).
+- [ ] MK-F01: confirm strobe/autorun at 0 really mean off.
+- [x] MK-F01 fog bench (2026-10-24): the fog level is proportional (64 vs
+      128 clearly differ; 255 adds less, possibly a part-cooled block). At
+      255: ~14s continuous, then ~45s to reheat. Phase duty cycles sized so
+      the eruption enters with ~12s of full fog banked.
 - [ ] H-E01A pulse floor (supervised, with LPG): the shortest pulse that
       ignites *every* time, single and back to back in a pattern. Set
       `safety.MIN_PULSE["flame"]` and `[flame] dot` to it.

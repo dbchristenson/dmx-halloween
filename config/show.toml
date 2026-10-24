@@ -110,8 +110,12 @@ accent_interval = [6.0, 10.0]
 # Fog: `fog` is the level, pulsed `fog_on` s on / `fog_off` s off from phase
 # entry (on first). Running the pump cools the fogger's heater; run it too
 # long and the MK-F01 stops itself to reheat, and DMX can't tell us when.
-# These duty cycles are PLACEHOLDERS until the bench measures how long it
-# fogs at each level before stalling (DESIGN.md open items).
+# Bench 2026-10-24: the fog level is proportional (64 vs 128 clearly
+# differ), and at 255 the MK-F01 fogs ~14s continuous, then stalls ~45s to
+# reheat. Treat the heater as a bank of ~14s of full fog refilling over 45s:
+# imminent must leave it nearly full for the eruption's 10s at 255, so
+# imminent fogs in short bursts. Modeled worst case (180s active, imminent,
+# eruption) enters the eruption with ~12s of 255 banked.
 #
 # [looks.<phase>.caldera] = the crater lights + the fogger's LEDs, coloring
 # the smoke. Keys missing there fall back to the phase's own keys.
@@ -146,7 +150,7 @@ accent_share = 0.4
 accent_hz = 0.07
 fog = 180
 fog_on = 3.0
-fog_off = 9.0
+fog_off = 10.0
 
 [looks.active.caldera]
 dimmer = [40, 255]
@@ -160,8 +164,8 @@ beat_hz = [0.6, 2.5]   # heartbeat accelerates from first to second over the pha
 palette = [[255, 255, 255], [255, 90, 0], [255, 0, 0]]  # each beat picks one per par
 hit_color = [255, 255, 255]
 fog = 255
-fog_on = 4.0
-fog_off = 4.0
+fog_on = 2.0                               # short bursts: save heat for the eruption
+fog_off = 6.0
 
 [looks.imminent.caldera]
 palette = [[255, 200, 0], [80, 255, 0], [0, 80, 255], [160, 0, 255], [255, 0, 140]]  # same cascading heartbeat
