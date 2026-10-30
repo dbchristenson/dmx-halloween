@@ -3,7 +3,7 @@
 
 [show]
 frame_rate = 40
-pyro_enabled = false   # software arm default: ALWAYS false; armed nightly via web UI
+pyro_enabled = true    # rehearsal lock off: web UI may arm (PIN). Engine still starts DISARMED.
 log_dir = "logs"
 
 [phases]
