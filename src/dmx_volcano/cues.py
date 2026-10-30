@@ -11,7 +11,7 @@ and, for pyro, into safety-gate burst requests that may be denied.
 
 from dataclasses import dataclass, field
 
-from .safety import MAX_BURST
+from .safety import MAX_BURST, MIN_GAP
 
 
 @dataclass(frozen=True)
@@ -33,6 +33,11 @@ def load_timeline(entries: list[dict]) -> list[Cue]:
         for e in entries
     ]
 
+
+# Spare time a timeline must leave beyond MIN_GAP between pyro cues. Cues
+# fire on the first frame at or after their t, so a gap of exactly MIN_GAP
+# comes out a few ms short on the Pi and the gate denies the second burst.
+GAP_SLACK = 0.25
 
 # action -> (required param, burst kind or None)
 ACTIONS = {
@@ -68,14 +73,22 @@ def validate_timeline(timeline: list[Cue]) -> None:
                 raise ValueError(f"{where}: file must be a filename or a list of them")
         if cue.action == "fog" and not 0 <= cue.params["level"] <= 255:
             raise ValueError(f"{where}: level must be 0-255")
+    co2 = sorted((c for c in timeline if c.action == "co2_burst"), key=lambda c: c.t)
+    for a, b in zip(co2, co2[1:]):
+        gap = b.t - (a.t + a.params["duration"])
+        if gap < MIN_GAP["co2"] + GAP_SLACK:
+            raise ValueError(
+                f"co2_burst at t={b.t} starts {gap:.2f}s after the previous one ends; "
+                f"leave at least {MIN_GAP['co2'] + GAP_SLACK}s or the gate may deny it"
+            )
 
 
 # Fallback timeline if config has no [[cues.eruption]] — tune in config, not
 # here. CO2 cues must respect safety.MAX_BURST and MIN_GAP (measured
 # burst-end to burst-start) or the gate will deny them — the gate wins.
 ERUPTION = [
-    Cue(1.0, "co2_burst", {"duration": 0.5}),
-    Cue(6.5, "co2_burst", {"duration": 5.0}),  # >= 5s after the pop ends
+    Cue(0.5, "co2_burst", {"duration": 0.5}),
+    Cue(6.5, "co2_burst", {"duration": 5.0}),  # 5.5s after the pop ends
 ]
 
 

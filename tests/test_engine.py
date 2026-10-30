@@ -6,6 +6,7 @@ through the fixed 30s IMMINENT warning phase, so eruption cue times are
 offset by E (imminent_duration) below.
 """
 
+import random
 from pathlib import Path
 
 import pytest
@@ -269,6 +270,30 @@ def test_overlong_pyro_cue_refused_at_startup_even_in_rehearsal(tmp_path, monkey
     )
     with pytest.raises(ValueError, match="duration must be"):
         build_engine(cfg, FakeDriver())
+
+
+def test_co2_cues_without_gap_slack_refused_at_startup(tmp_path, monkeypatch):
+    # Exactly 5s between bursts was denied on the Pi: frames land a few ms
+    # off the script, so the second burst came up short of MOKA's gap.
+    monkeypatch.chdir(tmp_path)
+    cfg = tmp_path / "show.toml"
+    cfg.write_text(CONFIG.read_text().replace("t = 0.5\n", "t = 1.0\n", 1))
+    with pytest.raises(ValueError, match="previous one ends"):
+        build_engine(cfg, FakeDriver())
+
+
+@pytest.mark.parametrize("seed", range(10))
+def test_both_co2_bursts_granted_despite_frame_jitter(engine, seed):
+    engine.gate.arm()
+    engine.machine.request_eruption()
+    E = engine.machine.config.imminent_duration
+    rng = random.Random(seed)
+    t = 0.0
+    while t < E + 13.0:  # 40Hz frames, each up to 15ms late, like the Pi
+        engine.step(t + rng.uniform(0.0, 0.015))
+        t += DT
+    total = sum(b - a for a, b in engine.co2_windows)
+    assert engine.co2.used_kg == pytest.approx(total * engine.co2.rate_kg_per_s)
 
 
 @pytest.mark.parametrize(

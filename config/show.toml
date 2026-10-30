@@ -285,7 +285,9 @@ rest = [1.0, 2.5]        # random pause between patterns, seconds
 # t = seconds from eruption start. The eruption is CO2 + fog only. CO2 cues
 # must respect the safety gate (<=6s bursts, >=5s from one burst's end to
 # the next one's start — MOKA's MK-C09 limit) or they are DENIED and logged
-# with granted=false. The gate wins, by design. In a 12s eruption that
+# with granted=false. The gate wins, by design. Leave slack on the 5s gap:
+# cues land on frame boundaries, and a gap of exactly 5s was denied on the
+# Pi (2026-10-30), so startup refuses CO2 cues closer than 5.25s. In a 12s eruption that
 # leaves room for two bursts: a pop, then the big one.
 # The eruption entry roar comes from [audio.phases.eruption] start; sound
 # cues are for audio sync'd to a mid-timeline moment. A sound cue's file may
@@ -297,9 +299,9 @@ action = "sound"
 file = "sounds/eruption/cue_aftershocks.wav"
 
 [[cues.eruption]]
-t = 1.0
+t = 0.5
 action = "co2_burst"
-duration = 0.5           # the pop
+duration = 0.5           # the pop: ends at 1.0s, 5.5s before the big one
 
 [[cues.eruption]]
 t = 6.5
