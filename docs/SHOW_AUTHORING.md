@@ -13,12 +13,14 @@ was denied and when.
 
 ## 1. Sounds
 
-**Importing files.** Drop audio files into the **`assets/`** directory at
-the repo root — subfolders are fine, and the corpus convention is
-`assets/sounds/<phase>/` — or use the control page's **Audio → Import**
-button, which copies files into `assets/` over the network (handy on the
-headless Pi). Config references are paths relative to `assets/`
-(`"sounds/active/active_loop_1.wav"`). Prefer 44.1kHz/16-bit stereo `.wav`
+**The show corpus is rendered, not dropped in.** Downloads go in
+`assets/raw/`; `uv run tools/prep_audio.py` renders them into
+`assets/sounds/` per the recipe in `tools/audio_prep.toml` — trims, fades,
+seamless loops, per-phase loudness, sub protection (`docs/AUDIO.md`). To add
+or change a show sound, edit the recipe and re-render. For a quick one-off,
+the control page's **Audio → Import** button still copies a file into
+`assets/` over the network. Config references are paths relative to
+`assets/` (`"sounds/active/bed_lava_rumble.wav"`). Prefer 44.1kHz/16-bit stereo `.wav`
 (the dmix slave format — zero resampling at show time); anything your
 player supports works — the Pi uses `aplay`/`mpg123`, macOS dev uses
 `afplay`. Accepted types: `.wav .mp3 .ogg .flac .aiff .aif .m4a`.
@@ -44,15 +46,15 @@ accent_interval = [12.0, 40.0]          # seconds between accents (uniform sampl
 | `bg` | same looping mechanics as `loop`; a second concurrent texture layer |
 | `accent` | a one-shot fires every `accent_interval = [min, max]` seconds (default `[10, 30]`), random pick each time; at most 3 sound at once |
 
-Every role is optional. A phase with no table (like `dormant`, silent by
-design) is simply omitted; a bare `active = ["rumble.wav"]` still works as
-shorthand for a `start` one-shot. All of a phase's layers stop on phase
-exit. Loop respawning has a few-ms gap at the file boundary — author loop
-files with matched head/tail (or a beat of room tone) so the seam hides.
+Every role is optional; a phase with no table is simply silent. A bare
+`active = ["rumble.wav"]` still works as shorthand for a `start` one-shot.
+On phase exit the `loop`/`bg` layers stop; one-shots (`start`, accents,
+stingers, cue sounds) ring out to their own end. Loop respawning has a
+few-ms gap at the file boundary — the recipe's `loop = true` crossfades each
+bed's tail into its head so the seam hides.
 
 **Relative loudness is authored into the files.** There is no per-layer
-gain: normalize the corpus so beds sit low and accents poke through
-(e.g. loops around −20 LUFS, accents peaking ~6–10 dB hotter). This is
+gain: the recipe's `[tiers]` set it (`docs/AUDIO.md` § Loudness). This is
 deliberate — one less thing to tune blind at the venue.
 
 **Transition stingers** — pools keyed by `"<from>-><to>"`, played once, on
@@ -70,7 +72,8 @@ sound different from a fizzle (`active->dormant`). Unlisted transitions are
 silent.
 
 **Cue sounds** — fired at exact moments inside the eruption timeline (see
-below), e.g. the roar synced to the big CO2 burst.
+below), e.g. the roar synced to the big CO2 burst. `file` takes one file or
+a pool.
 
 Files referenced in config but missing from `assets/` are flagged at
 startup (console warning + `audio_missing` log event) and shown with a ⚠ in
@@ -222,7 +225,7 @@ Action reference:
 
 | Action | Params | Notes |
 |---|---|---|
-| `sound` | `file` | plays once from `assets/` |
+| `sound` | `file` (one file or a pool) | plays once from `assets/`, rings out past the eruption |
 | `fog` | `level` (0–255) | holds until the eruption ends (overrides `[looks.eruption] fog`) |
 | `co2_burst` | `duration` (s) | max 4s, min 5s gap between bursts; consumes tracked CO2 |
 | `pars` / `fade` | — | currently no-ops; eruption lighting comes from `[looks.eruption]` |

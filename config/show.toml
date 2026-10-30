@@ -59,12 +59,12 @@ auth_token = ""
 from_number = ""
 
 # --- Audio --------------------------------------------------------------
-# Files are relative to assets/ (drop them there, or import via the web
-# page's Audio panel). Every pool picks at random each time it fires, never
-# the same file twice in a row while the pool has alternatives. Layer
-# loudness is baked into the files (normalize the corpus; there is no
-# per-layer gain). Eruption's big sync'd sound belongs in the cue timeline
-# below instead.
+# Files are relative to assets/. assets/sounds/ is rendered by
+# tools/prep_audio.py from the raw downloads in assets/raw/ — leveled per
+# phase, filtered for the sub, loops seamless (docs/AUDIO.md). Change a sound
+# in tools/audio_prep.toml and re-render; don't hand-edit assets/sounds/.
+# Every pool picks at random each time it fires, never the same file twice
+# in a row while the pool has alternatives.
 #
 # Roles within a phase:
 #   start  = one-shot on phase entry
@@ -73,31 +73,81 @@ from_number = ""
 #   bg     = second looping texture layer
 #   accent = one-shots sprinkled at random accent_interval = [min, max]
 #            seconds while the phase runs
+# loop/bg stop at a phase change; one-shots (start, accent, stingers, cue
+# sounds) ring out to their own faded end.
 
 [audio.phases.dormant]
-loop = ["sounds/dormant/dormant_loop_1.wav", "sounds/dormant/dormant_loop_2.wav"]
-accent = ["sounds/dormant/dormant_accent_1.wav"]
-accent_interval = [45.0, 120.0]   # sparse: dormant should feel mostly asleep
+loop = ["sounds/dormant/bed_bubbling.wav", "sounds/dormant/bed_bubbling_deep.wav"]
+bg = ["sounds/dormant/bg_fire_whoosh.wav"]
+accent = [
+  "sounds/dormant/accent_interior_rumble_1.wav",
+  "sounds/dormant/accent_interior_rumble_2.wav",
+  "sounds/dormant/accent_distant_explosion.wav",
+  "sounds/dormant/accent_wind_fire_1.wav",
+  "sounds/dormant/accent_wind_fire_2.wav",
+  "sounds/dormant/accent_dread.wav",
+]
+accent_interval = [30.0, 90.0]    # sparse: dormant should feel mostly asleep
 
 [audio.phases.active]
-loop = ["sounds/active/active_loop_1.wav", "sounds/active/active_loop_2.wav"]
+loop = [
+  "sounds/active/bed_lava_rumble.wav",
+  "sounds/active/bed_magma_growl.wav",
+  "sounds/active/bed_magma_muted.wav",
+]
+bg = ["sounds/active/bg_magma_flow.wav"]
+accent = [
+  "sounds/active/accent_cracking.wav",
+  "sounds/active/accent_fireball_whump.wav",
+  "sounds/active/accent_close_explosion.wav",
+]
+accent_interval = [15.0, 40.0]
 
 [audio.phases.imminent]
-loop = ["sounds/imminent/imminent_loop_1.wav"]
-accent = ["sounds/imminent/imminent_accent_1.wav", "sounds/imminent/imminent_accent_2.wav"]
+loop = ["sounds/imminent/bed_lava_chaos_1.wav", "sounds/imminent/bed_lava_chaos_2.wav"]
+bg = ["sounds/imminent/bg_gurgle.wav"]
+accent = [
+  "sounds/imminent/accent_thunder_hit.wav",
+  "sounds/imminent/accent_thunder_1.wav",
+  "sounds/imminent/accent_thunder_2.wav",
+  "sounds/imminent/accent_crackle.wav",
+]
 accent_interval = [6.0, 12.0]     # dense: 30s phase, guarantee a few hits
 
+# The rest of the eruption's sound is the cue timeline below (aftershocks,
+# the big burst); its start tail rings into the cooldown.
 [audio.phases.eruption]
-start = ["sounds/eruption/eruption_start_1.wav", "sounds/eruption/eruption_start_2.wav"]
-accent = ["sounds/eruption/eruption_accent_1.wav"]
-accent_interval = [6.0, 10.0]
+start = [
+  "sounds/eruption/start_huge_boomy.wav",
+  "sounds/eruption/start_big_explosion.wav",
+  "sounds/eruption/start_flame_burst.wav",
+]
+bg = ["sounds/eruption/bg_earthquake.wav"]
 
 # Stingers layered over the new phase's audio when the show makes exactly
-# this move — the audible cue that the volcano is advancing. Keys are
-# "<from>-><to>" over dormant / active / imminent / eruption. No stinger
-# files in the corpus yet — add e.g.:
-#   [audio.transitions]
-#   "dormant->active" = ["sounds/transitions/stir.wav"]
+# this move. Keys are "<from>-><to>". imminent->eruption has none on
+# purpose: the eruption start explosion is that moment.
+[audio.transitions]
+"dormant->active" = [
+  "sounds/transitions/dormant-active_deep_boom.wav",
+  "sounds/transitions/dormant-active_abyss_blast.wav",
+  "sounds/transitions/dormant-active_distorted_hit.wav",
+]
+"active->imminent" = [
+  "sounds/transitions/to-imminent_fire_rush.wav",
+  "sounds/transitions/to-imminent_flame_burst.wav",
+  "sounds/transitions/to-imminent_stove_blast.wav",
+]
+"dormant->imminent" = [           # the manual trigger
+  "sounds/transitions/to-imminent_fire_rush.wav",
+  "sounds/transitions/to-imminent_flame_burst.wav",
+  "sounds/transitions/to-imminent_stove_blast.wav",
+]
+"active->dormant" = [             # the fizzle: water on lava
+  "sounds/transitions/active-dormant_extinguish_1.wav",
+  "sounds/transitions/active-dormant_extinguish_2.wav",
+]
+"eruption->dormant" = ["sounds/transitions/eruption-dormant_distant_eruption.wav"]
 
 # --- Lighting looks -----------------------------------------------------
 # Per-phase render parameters; anything set here overrides the defaults in
@@ -235,8 +285,14 @@ rest = [1.0, 2.5]        # random pause between patterns, seconds
 # the next one's start — MOKA's MK-C09 limit) or they are DENIED and logged
 # with granted=false. The gate wins, by design. In a 10s eruption that
 # leaves room for two bursts: a pop, then the big one.
-# The eruption entry roar comes from [audio.phases.eruption] start; use a
-# sound cue here only for audio sync'd to a mid-timeline moment.
+# The eruption entry roar comes from [audio.phases.eruption] start; sound
+# cues are for audio sync'd to a mid-timeline moment. A sound cue's file may
+# be one file or a pool (random pick, no back-to-back repeats).
+
+[[cues.eruption]]
+t = 2.5
+action = "sound"
+file = "sounds/eruption/cue_aftershocks.wav"
 
 [[cues.eruption]]
 t = 1.0
@@ -247,6 +303,14 @@ duration = 0.5           # the pop
 t = 6.5
 action = "co2_burst"
 duration = 2.0           # the big one: ends at 8.5s, lights white-out over it
+
+[[cues.eruption]]
+t = 6.5
+action = "sound"           # lands with the big burst
+file = [
+  "sounds/eruption/cue_big_burst_underwater.wav",
+  "sounds/eruption/cue_big_burst_flame.wav",
+]
 
 # --- Fixtures -----------------------------------------------------------
 # Channel maps are PROVISIONAL until confirmed against printed manuals

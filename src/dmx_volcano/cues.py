@@ -61,6 +61,11 @@ def validate_timeline(timeline: list[Cue]) -> None:
             raise ValueError(f"{where}: missing {param!r}")
         if kind is not None and not 0 < cue.params["duration"] <= MAX_BURST[kind]:
             raise ValueError(f"{where}: duration must be 0-{MAX_BURST[kind]}s")
+        if cue.action == "sound":
+            files = cue.params["file"]
+            files = [files] if isinstance(files, str) else files
+            if not files or not all(isinstance(f, str) for f in files):
+                raise ValueError(f"{where}: file must be a filename or a list of them")
         if cue.action == "fog" and not 0 <= cue.params["level"] <= 255:
             raise ValueError(f"{where}: level must be 0-255")
 

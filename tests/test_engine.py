@@ -244,6 +244,8 @@ def test_overlong_pyro_cue_refused_at_startup_even_in_rehearsal(tmp_path, monkey
         {"t": 1.0, "action": "co2_burst"},  # missing duration
         {"t": 1.0, "action": "fog", "level": 300},
         {"t": -1.0, "action": "pars"},
+        {"t": 1.0, "action": "sound", "file": []},  # empty pool
+        {"t": 1.0, "action": "sound", "file": ["a.wav", 3]},
     ],
 )
 def test_malformed_cues_are_refused(cue):

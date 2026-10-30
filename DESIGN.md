@@ -14,7 +14,7 @@ Safety is the number one priority — every design decision below defers to that
 | MOKA MK-C09 | CO2 jet cannon | 1 channel (trigger) | owned |
 | MOKA MK-F01 | 1500W fogger + 24×3W RGB LEDs | 7 channels per product page: fog, R, G, B, strobe, LED autorun, autorun speed — value ranges unpublished, **confirm on bench** | owned |
 | ~8× DMX PAR fixtures | Amber/red mood lighting in/around cone | 3–8 ch each | to purchase — require documented channel map and blackout-on-DMX-loss |
-| Speakers | Eruption/ambient audio | — | owned; wired aux from Pi (no Bluetooth — latency/dropout) |
+| Speakers | Eruption/ambient audio | Alto TS408 + Polk PSW10 sub | owned; wired aux from Pi (no Bluetooth — latency/dropout) |
 
 - One DMX universe, all fixtures daisy-chained. ~40Hz full-universe refresh.
 - Pi joins the on-site Starlink WiFi; operators' phones reach the control page at
@@ -168,9 +168,11 @@ tests/                   # safety invariants, state machine, wire format
   and `accent` one-shots at randomly sampled intervals; `[audio.transitions]`
   stingers layer on top when the show makes that exact move — the audible
   "it's advancing" cue. Every pool picks at random, no back-to-back repeats.
-  Layers are concurrent player processes (dmix on the Pi:
-  `deploy/asound.conf`); relative loudness is authored into the files — no
-  runtime gain to tune blind at the venue. The speaker itself is dumb: aux
+  At a phase change the loops stop and one-shots ring out. Layers are
+  concurrent player processes (dmix on the Pi: `deploy/asound.conf`);
+  relative loudness is authored into the files by `tools/prep_audio.py`
+  from raw downloads — no runtime gain to tune blind at the venue
+  (`docs/AUDIO.md`, which also plans the in-process mixer that replaces this). The speaker itself is dumb: aux
   line-level from the Pi, no DMX involved. Files are imported by dropping
   into `assets/` or uploading from the web page's Audio panel, which also
   previews any file out the real speaker (the venue line check); pool

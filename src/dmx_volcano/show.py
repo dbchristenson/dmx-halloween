@@ -21,7 +21,7 @@ import time
 import tomllib
 from pathlib import Path
 
-from .audio import LayeredPlayer, SoundBank, play
+from .audio import LayeredPlayer, SoundBank
 from .co2 import CO2Tracker
 from .cues import ERUPTION, Cue, CueRunner, load_timeline, validate_timeline
 from .driver.fake import FakeDriver
@@ -266,7 +266,8 @@ class ShowEngine:
         granted: bool | None = None
 
         if cue.action == "sound":
-            play(ASSETS_DIR / cue.params["file"])
+            if self.audio is not None:
+                self.audio.play_one_shot(self.sounds.cue_sound(cue.t))
         elif cue.action == "fog":
             self.overlay.set(
                 self.rig["fogger"].channel("fog"), cue.params["level"], eruption_end
@@ -473,6 +474,9 @@ def build_engine(
     )
 
     sounds = SoundBank.from_config(raw.get("audio", {}), ASSETS_DIR)
+    for cue in timeline:
+        if cue.action == "sound":
+            sounds.add_cue(cue.t, cue.params["file"])
     missing = sounds.missing_files()
     if missing:
         # Loud at startup, tolerated at play time: the show runs, silently.

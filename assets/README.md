@@ -1,12 +1,13 @@
 # assets/
 
-Sound files for the show live here (see docs/SHOW_AUTHORING.md). Drop them
-in directly (subfolders fine — the corpus lives in `sounds/<phase>/`) or
-import via the control page's Audio panel. Referenced from config/show.toml
-by path relative to this directory: `[audio.phases.<phase>]` role pools
-(start/loop/bg/accent), `[audio.transitions]` stingers, and
-`[[cues.eruption]]` sound cues.
+`raw/` — audio downloads, untouched, with per-file notes in `raw/readme.md`.
+`sounds/` — the show corpus, **rendered** from `raw/` by
+`uv run tools/prep_audio.py` (recipe: `tools/audio_prep.toml`): 44.1kHz /
+16-bit / stereo WAV leveled per phase. Don't hand-edit `sounds/` — the
+script regenerates it and deletes anything the recipe doesn't produce.
+Both are gitignored; see docs/AUDIO.md.
 
-Corpus format: 44.1kHz / 16-bit / stereo WAV — matches the Pi's dmix slave
-(deploy/asound.conf) so nothing resamples at show time. Convert imports:
-`ffmpeg -i in.mp3 -ar 44100 -ac 2 -sample_fmt s16 out.wav`.
+Config/show.toml references `sounds/...` paths in `[audio.phases.<phase>]`
+role pools, `[audio.transitions]` stingers, and `[[cues.eruption]]` sound
+cues. The control page's Audio panel can still import a one-off file into
+`assets/` and preview any rendered file out the speaker.

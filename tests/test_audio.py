@@ -194,15 +194,47 @@ def test_accents_fire_on_schedule_and_are_capped(assets, player_log):
     assert len(player_log) == baseline + 3  # MAX_CONCURRENT_ACCENTS
 
 
-def test_phase_exit_stops_every_layer(assets, player_log):
+def test_phase_exit_stops_loops_but_one_shots_ring_out(assets, player_log):
     player = LayeredPlayer(bank_for_player(assets))
     player.enter_phase("dormant", "active")
     player.tick(0.0)
     player.tick(5.0)  # an accent is sounding
+    stinger, start, loop, accent = player_log
     player.enter_phase("active", "dormant")  # fizzle: no dormant audio at all
-    assert all(p.terminated for p in player_log[:4])
-    player.stop_all()
+    assert loop.terminated
+    assert not any(p.terminated for p in (stinger, start, accent))
+    player.stop_all()  # shutdown: nothing survives
     assert all(p.terminated for p in player_log)
+
+
+def test_ringing_accents_leave_the_new_phase_its_full_accent_cap(assets, player_log):
+    player = LayeredPlayer(bank_for_player(assets))
+    player.enter_phase("dormant", "active")
+    player.tick(0.0)
+    for t in (5.0, 10.0, 15.0):
+        player.tick(t)  # three never-ending accents: the cap
+    player.enter_phase("active", "active")
+    baseline = len(player_log)
+    player.tick(20.0)
+    player.tick(25.0)
+    assert len(player_log) == baseline + 1  # the old phase's accents don't count
+
+
+def test_cue_pool_picks_without_back_to_back_repeats(assets, player_log):
+    bank = bank_for_player(assets)
+    bank.add_cue(6.5, ["a.wav", "b.wav"])
+    bank.add_cue(2.5, "c.wav")
+    picks = [bank.cue_sound(6.5).name for _ in range(10)]
+    assert all(x != y for x, y in zip(picks, picks[1:]))
+    assert bank.cue_sound(2.5).name == "c.wav"
+    assert bank.cue_sound(9.0) is None
+    assert {"a.wav", "b.wav", "c.wav"} <= bank.referenced()
+    player = LayeredPlayer(bank)
+    player.play_one_shot(bank.cue_sound(2.5))
+    player.enter_phase("eruption", "dormant")
+    assert not player_log[0].terminated  # cue sounds ring out too
+    player.stop_all()
+    assert player_log[0].terminated
 
 
 # ---- validation & description -------------------------------------------
@@ -232,13 +264,18 @@ def test_list_assets_recurses_and_skips_non_audio(assets):
     assert list_assets(assets) == [
         "a.wav", "b.wav", "c.wav", "sounds/active/z.wav", "stir.wav"
     ]
+    raw = assets / "raw" / "active"
+    raw.mkdir(parents=True)
+    (raw / "download.wav").write_bytes(b"RIFF")
+    assert "raw/active/download.wav" not in list_assets(assets)  # unprocessed
     assert list_assets(assets / "nope") == []
 
 
 def test_resolve_asset_allows_subpaths_but_never_escapes(assets):
     assert resolve_asset(assets, "sounds/active/z.wav") == assets / "sounds/active/z.wav"
     assert resolve_asset(assets, "a.wav") == assets / "a.wav"
-    for bad in ["../a.wav", "/etc/a.wav", "x/../a.wav", ".hidden/a.wav", "a.sh", ""]:
+    for bad in ["../a.wav", "/etc/a.wav", "x/../a.wav", ".hidden/a.wav", "a.sh", "",
+                "raw/active/download.wav"]:
         with pytest.raises(ValueError):
             resolve_asset(assets, bad)
 
@@ -258,11 +295,15 @@ def test_engine_starts_dormant_bed_and_swaps_on_transition(
     monkeypatch.chdir(tmp_path)
     eng, _, _ = build_engine(CONFIG, FakeDriver())
     eng.machine.start(0.0)
+    dormant = eng.sounds.phase("dormant")
+    active = eng.sounds.phase("active")
     eng.step(0.0)  # startup: no transition, but the dormant bed must begin
-    assert player_log[0].name.startswith("dormant_loop_")
+    bed = player_log[0]
+    assert f"sounds/dormant/{bed.name}" in dormant.loop
     eng.step(781.0)  # past the dormant dwell ceiling: dormant -> active
-    assert player_log[0].terminated  # old bed stopped
-    assert player_log[-1].name.startswith("active_loop_")
+    assert bed.terminated  # old bed stopped
+    assert f"sounds/active/{player_log[-2].name}" in active.loop
+    assert f"sounds/active/{player_log[-1].name}" in active.bg
 
 
 def test_engine_manual_trigger_starts_imminent_audio(tmp_path, monkeypatch, player_log):
@@ -271,9 +312,15 @@ def test_engine_manual_trigger_starts_imminent_audio(tmp_path, monkeypatch, play
     eng.machine.start(0.0)
     eng.machine.request_eruption()
     eng.step(0.1)  # dormant -> imminent, before any startup bed
-    assert [p.name for p in player_log] == ["imminent_loop_1.wav"]
+    stinger, bed, bg = (p.name for p in player_log)
+    assert f"sounds/transitions/{stinger}" in eng.sounds.transitions[("dormant", "imminent")]
+    assert f"sounds/imminent/{bed}" in eng.sounds.phase("imminent").loop
+    assert f"sounds/imminent/{bg}" in eng.sounds.phase("imminent").bg
     eng.step(30.2)  # imminent runs its fixed 30s, then -> eruption
-    assert player_log[-1].name.startswith("eruption_start_")
+    assert f"sounds/eruption/{player_log[-2].name}" in eng.sounds.phase("eruption").start
+    fired = len(player_log)
+    eng.step(32.8)  # 2.6s into the eruption: the aftershocks cue
+    assert player_log[fired].name == "cue_aftershocks.wav"
 
 
 # ---- import sanitization ------------------------------------------------

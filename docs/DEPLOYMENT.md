@@ -81,16 +81,48 @@ After this, the Pi boots straight into the dormant show, disarmed, every
 time. Control page: `http://rbpi4-dmx.local:8000` from any phone on the
 same network as the Pi (Starlink at the venue).
 
-## Audio out (the speaker)
+## Audio out (the speakers)
 
-The speaker needs no DMX and never touches the universe — it is a plain
-audio device fed line-level from the Pi over a 3.5mm aux cable. Any powered
-speaker with an aux/line input works as-is.
+The speakers need no DMX and never touch the universe — they are plain
+audio devices fed line-level from the Pi's 3.5mm jack: an **Alto TS408**
+(8" powered PA top) and a **Polk PSW10** (10" home subwoofer). See
+`HARDWARE.md` § 6 for specs and cables.
 
-**Wiring**: Pi 3.5mm jack → aux cable → speaker line-in. Set the Pi's ALSA
-volume high (~85%, `alsamixer`, then `sudo alsactl store` to persist) and do
-the real level setting on the speaker's own gain — a hot-ish line signal
-into a low amp gain keeps the noise floor down.
+**Wiring**: Pi 3.5mm jack → 3.5mm stereo splitter, then:
+
+- 3.5mm → dual ¼" TS cable → TS408 inputs (left → ch1, right → ch2).
+  Both channel switches on **Line**.
+- 3.5mm → dual RCA cable → PSW10 RCA line in.
+
+(The TS408's XLR link out could feed the sub instead of the splitter, but it
+is unconfirmed whether it carries both inputs or just ch1 — check the TS408
+manual before relying on it.)
+
+**Power order**: Pi first, speakers last; speakers off first. Plugging or
+unplugging the aux cables with the speakers on and up sends a thump through
+them.
+
+**Setting levels**: set the Pi's ALSA volume high (~85%, `alsamixer`, then
+`sudo alsactl store` to persist) and leave it; all real level setting happens
+on the speakers. A hot-ish line signal into a low amp gain keeps the noise
+floor down. The Pi's jack is consumer-level, so the TS408 gain may sit
+fairly high — that's normal (the corpus also carries 6dB of stacking
+headroom, docs/AUDIO.md § Loudness). With the loudest eruption file playing from the
+Audio panel:
+
+1. **TS408**: raise the channel gains to show level. The red LED is the
+   built-in limiter working — occasional flicker on peaks is fine, steady red
+   means back off.
+2. **PSW10**: crossover to **80–100Hz** (it handles only what the TS408
+   can't), phase whichever sounds fuller from the audience spot. Raise its
+   gain just until the bass blends, and stop well short of port chuffing,
+   flapping, or knocking. It has a 50W home amp and no confirmed limiter —
+   hours of rumble beds are harder on it than the 10s test, so leave margin.
+3. Judge loudness from where guests stand: the eruption should feel big, but
+   nobody should be blasted at close range for long.
+
+Keep the sub dry and ventilated (its amp is the back panel) — it is a home
+sub, not built for outdoor nights.
 
 **Software mixing is required.** The engine layers several sounds at once
 (loop bed + bg + accents + transition stingers = one player process each),
@@ -123,9 +155,10 @@ Develop and test on the Mac (sim + Docker), then:
 ssh dbchristenson@rbpi4-dmx.local "cd dmx-halloween && git pull && uv sync --frozen && sudo systemctl restart dmx-volcano"
 ```
 
-The audio corpus (`assets/sounds/`) is gitignored — 44MB of WAV doesn't
-belong in the repo — so after adding or changing sound files, push them
-separately before the restart:
+The audio corpus (`assets/sounds/`) is gitignored — licensed WAVs don't
+belong in a public repo — so after re-rendering it (`uv run
+tools/prep_audio.py`, docs/AUDIO.md), push it separately before the restart
+(`assets/raw/` stays on the Mac):
 
 ```sh
 rsync -av --delete assets/sounds/ dbchristenson@rbpi4-dmx.local:dmx-halloween/assets/sounds/

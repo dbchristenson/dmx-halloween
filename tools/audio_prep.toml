@@ -1,0 +1,333 @@
+# Recipe for the show corpus — rendered by tools/prep_audio.py from
+# assets/raw/ (the untouched downloads, with the notes in assets/raw/readme.md)
+# into assets/sounds/, which config/show.toml's [audio] pools reference.
+#
+# One [[sound]] per output. Keys:
+#   out          path under assets/sounds/
+#   src          path under assets/raw/
+#   start / end  trim window in seconds (default: whole file)
+#   tier         loudness target from [tiers]
+#   loop         true for beds: crossfade the tail into the head, no fades
+#   fade_in / fade_out / highpass / ceiling   override [defaults]
+#   layers       instead of src: [{src, start, end, at, gain, speed}, ...]
+#                mixed together (at = offset s, gain = dB, speed = varispeed)
+
+[defaults]
+highpass = 30.0        # Hz: below what the PSW10 sub can play (also strips DC)
+ceiling = -1.0         # dBFS sample peak after limiting
+fade_in = 0.005
+fade_out = 0.05
+loop_crossfade = 2.0   # seconds of tail blended into the head
+# Added to every tier. Layers sum in dmix and saturate past full scale: the
+# worst stacks (imminent bed + bg + stinger + 3 accents; eruption start + bg
+# + both cues + a ringing accent) peak ~5.5dB over the files' own peaks.
+# Make the level up on the TS408's gain, never by raising this.
+master = -6.0
+
+# Integrated loudness targets (LUFS, before master). The show gets louder as
+# it builds; bg sits under its phase's bed, hits (accents/stingers) on top.
+[tiers]
+dormant_bg = -33.0
+dormant_bed = -30.0
+dormant_hit = -26.0
+active_bg = -27.0
+active_bed = -24.0
+active_hit = -20.0
+imminent_bg = -22.0
+imminent_bed = -19.0
+imminent_hit = -15.0
+eruption_bg = -16.0
+eruption_tail = -15.0
+eruption_hit = -12.0
+
+# --- Dormant ------------------------------------------------------------
+
+[[sound]]
+out = "dormant/bed_bubbling.wav"
+src = "dormant/dormant_loop_1.wav"
+tier = "dormant_bed"
+loop = true
+
+[[sound]]
+out = "dormant/bed_bubbling_deep.wav"
+src = "dormant/dormant_loop_2.wav"
+start = 1.0
+end = 31.0
+tier = "dormant_bed"
+loop = true
+
+[[sound]]
+out = "dormant/bg_fire_whoosh.wav"
+src = "dormant/Fire Whoosh Loop 02 (TSMy4qjYvF).wav"
+tier = "dormant_bg"
+loop = true
+
+[[sound]]
+out = "dormant/accent_interior_rumble_1.wav"
+src = "dormant/Earthquake Interior Rumble 01 (TSMPm79zgF).wav"
+tier = "dormant_hit"
+fade_out = 2.0
+
+[[sound]]
+out = "dormant/accent_interior_rumble_2.wav"
+src = "dormant/Earthquake Interior Rumble 02 (TSMpJJrW3F).wav"
+tier = "dormant_hit"
+fade_out = 2.0
+
+[[sound]]
+out = "dormant/accent_distant_explosion.wav"
+src = "dormant/Real Explosions 03 (TSM3wH6vhF).wav"
+tier = "dormant_hit"
+fade_out = 1.5
+
+[[sound]]
+out = "dormant/accent_wind_fire_1.wav"
+src = "dormant/Wind Whipped Fire 02 (TSMmqnhC9F).wav"
+end = 17.0
+tier = "dormant_hit"
+fade_in = 2.0
+fade_out = 3.0
+
+[[sound]]
+out = "dormant/accent_wind_fire_2.wav"
+src = "dormant/Wind Whipped Fire 02 (TSMmqnhC9F).wav"
+start = 18.0
+tier = "dormant_hit"
+fade_in = 2.0
+fade_out = 3.0
+
+# The "dread music": under the beds, never a hit — slow in, slow out.
+[[sound]]
+out = "dormant/accent_dread.wav"
+src = "dormant/dormant_accent_1.wav"
+start = 1.0
+tier = "dormant_bed"
+fade_in = 4.0
+fade_out = 5.0
+
+# --- Active -------------------------------------------------------------
+
+[[sound]]
+out = "active/bed_lava_rumble.wav"
+src = "active/Lava Rumble Loop 01 (TSMvyxHDwF).wav"
+tier = "active_bed"
+loop = true
+
+[[sound]]
+out = "active/bed_magma_growl.wav"
+src = "active/active_loop_1.wav"
+end = 33.0
+tier = "active_bed"
+loop = true
+
+[[sound]]
+out = "active/bed_magma_muted.wav"
+src = "active/active_loop_2.wav"
+start = 0.5
+end = 40.0
+tier = "active_bed"
+loop = true
+
+[[sound]]
+out = "active/bg_magma_flow.wav"
+src = "active/Heavy Lava Magma Flow (TSMdWd4MXF).wav"
+tier = "active_bg"
+loop = true
+
+[[sound]]
+out = "active/accent_cracking.wav"
+src = "active/Earthquake Cracking 01 (TSMMGRqnGF).wav"
+tier = "active_hit"
+fade_out = 2.0
+
+[[sound]]
+out = "active/accent_fireball_whump.wav"
+src = "active/Fireball Explosion Whump 02 (TSMPZZfkNF).wav"
+end = 9.0
+tier = "active_hit"
+fade_out = 3.0
+
+[[sound]]
+out = "active/accent_close_explosion.wav"
+src = "dormant/Real Explosions 02 (TSMV6rgqbF).wav"
+tier = "active_hit"
+fade_out = 1.5
+
+# --- Imminent -----------------------------------------------------------
+# One chaotic minute, cut into two ~30s beds so consecutive eruptions differ.
+
+[[sound]]
+out = "imminent/bed_lava_chaos_1.wav"
+src = "imminent/Lava Rumble Loop 01 (TSMZ4sLX6F).wav"
+end = 31.0
+tier = "imminent_bed"
+loop = true
+
+[[sound]]
+out = "imminent/bed_lava_chaos_2.wav"
+src = "imminent/Lava Rumble Loop 01 (TSMZ4sLX6F).wav"
+start = 29.0
+tier = "imminent_bed"
+loop = true
+
+[[sound]]
+out = "imminent/bg_gurgle.wav"
+src = "imminent/Earthquake Rumbling Loop 02 (TSMrfBMDdF).wav"
+tier = "imminent_bg"
+loop = true
+
+[[sound]]
+out = "imminent/accent_thunder_hit.wav"
+src = "imminent/imminent_accent_1.wav"
+tier = "imminent_hit"
+fade_out = 1.0
+
+[[sound]]
+out = "imminent/accent_thunder_1.wav"
+src = "imminent/imminent_loop_1.wav"
+start = 3.0
+end = 8.5
+tier = "imminent_hit"
+fade_in = 0.05
+fade_out = 1.5
+
+[[sound]]
+out = "imminent/accent_thunder_2.wav"
+src = "imminent/imminent_loop_1.wav"
+start = 11.0
+end = 16.5
+tier = "imminent_hit"
+fade_in = 0.3
+fade_out = 1.5
+
+[[sound]]
+out = "imminent/accent_crackle.wav"
+src = "imminent/Gas Stove Explosion 04 (TSMF9BcJLF).wav"
+start = 5.0
+end = 15.0
+tier = "imminent_hit"
+fade_in = 0.5
+fade_out = 2.0
+
+# --- Eruption -----------------------------------------------------------
+# Starts are trimmed to ~the 10s phase; their tails ring into the cooldown
+# under the eruption->dormant stinger.
+
+[[sound]]
+out = "eruption/start_huge_boomy.wav"
+src = "eruption/Fireball Explosion Huge Boomy (TSMLNVtB9F).wav"
+end = 10.0
+tier = "eruption_hit"
+fade_out = 3.0
+
+[[sound]]
+out = "eruption/start_big_explosion.wav"
+src = "eruption/eruption_start_2.wav"
+end = 9.0
+tier = "eruption_hit"
+fade_out = 2.0
+
+[[sound]]
+out = "eruption/start_flame_burst.wav"
+src = "eruption/Flame Burst Explosion 04 (TSMLfqyG9F).wav"
+tier = "eruption_hit"
+fade_out = 1.5
+
+[[sound]]
+out = "eruption/bg_earthquake.wav"
+src = "eruption/Earthquake Rumbling Loop 01 (TSMq836KpF).wav"
+tier = "eruption_bg"
+loop = true
+
+# Cue sounds ([[cues.eruption]] action = "sound").
+[[sound]]
+out = "eruption/cue_aftershocks.wav"
+src = "eruption/Lava Weirdness Growls 01 (TSM4ZNywXF).wav"
+end = 10.0
+tier = "eruption_bg"
+fade_out = 3.0
+
+[[sound]]
+out = "eruption/cue_big_burst_underwater.wav"
+src = "imminent/imminent_accent_2.wav"
+tier = "eruption_hit"
+fade_out = 1.5
+
+[[sound]]
+out = "eruption/cue_big_burst_flame.wav"
+src = "eruption/Flame Burst Explosion 01 (TSMbvGsqvF).wav"
+tier = "eruption_hit"
+fade_out = 1.5
+
+# --- Transition stingers ------------------------------------------------
+
+[[sound]]
+out = "transitions/dormant-active_deep_boom.wav"
+src = "dormant/Distant Long Explosion 01 (TSM3VN9mGF).wav"
+tier = "active_hit"
+fade_out = 1.5
+
+[[sound]]
+out = "transitions/dormant-active_abyss_blast.wav"
+src = "active/Abyss Blast Explosion 01 (TSMv33jqzF).wav"
+tier = "active_hit"
+fade_out = 1.0
+
+[[sound]]
+out = "transitions/dormant-active_distorted_hit.wav"
+src = "active/Distorted Heavy Explosions (TSMvwQpskF).wav"
+end = 8.0
+tier = "active_hit"
+fade_out = 3.0
+
+[[sound]]
+out = "transitions/to-imminent_fire_rush.wav"
+src = "active/Fireball Explosion Whump 03 (TSMRkL8mXF).wav"
+end = 10.0
+tier = "imminent_hit"
+fade_out = 4.0
+
+[[sound]]
+out = "transitions/to-imminent_flame_burst.wav"
+src = "eruption/Flame Burst Explosion 01 (TSMbvGsqvF).wav"
+tier = "imminent_hit"
+fade_out = 1.5
+
+[[sound]]
+out = "transitions/to-imminent_stove_blast.wav"
+src = "imminent/Gas Stove Explosion 04 (TSMF9BcJLF).wav"
+end = 4.5
+tier = "imminent_hit"
+fade_out = 1.5
+
+# The fizzle: water hitting lava, several blocks in a spreading cascade.
+[[sound]]
+out = "transitions/active-dormant_extinguish_1.wav"
+tier = "active_hit"
+fade_out = 0.5
+layers = [
+  { src = "active/Cooling FizzWater on Lava (Minecraft).wav", start = 0.3, at = 0.00 },
+  { src = "active/Cooling FizzWater on Lava (Minecraft).wav", start = 0.3, at = 0.30, speed = 1.08, gain = -2.0 },
+  { src = "active/Cooling FizzWater on Lava (Minecraft).wav", start = 0.3, at = 0.55, speed = 0.93, gain = -3.5 },
+  { src = "active/Cooling FizzWater on Lava (Minecraft).wav", start = 0.3, at = 0.90, speed = 1.15, gain = -5.0 },
+  { src = "active/Cooling FizzWater on Lava (Minecraft).wav", start = 0.3, at = 1.30, speed = 0.88, gain = -7.0 },
+]
+
+[[sound]]
+out = "transitions/active-dormant_extinguish_2.wav"
+tier = "active_hit"
+fade_out = 0.5
+layers = [
+  { src = "active/Cooling FizzWater on Lava (Minecraft).wav", start = 0.3, at = 0.00, speed = 0.95 },
+  { src = "active/Cooling FizzWater on Lava (Minecraft).wav", start = 0.3, at = 0.20, speed = 1.12, gain = -1.5 },
+  { src = "active/Cooling FizzWater on Lava (Minecraft).wav", start = 0.3, at = 0.45, speed = 1.02, gain = -3.0 },
+  { src = "active/Cooling FizzWater on Lava (Minecraft).wav", start = 0.3, at = 0.65, speed = 0.90, gain = -4.0 },
+  { src = "active/Cooling FizzWater on Lava (Minecraft).wav", start = 0.3, at = 1.00, speed = 1.20, gain = -6.0 },
+  { src = "active/Cooling FizzWater on Lava (Minecraft).wav", start = 0.3, at = 1.40, speed = 0.85, gain = -8.0 },
+]
+
+[[sound]]
+out = "transitions/eruption-dormant_distant_eruption.wav"
+src = "eruption/distant_eruption.wav"
+tier = "eruption_tail"
+fade_out = 3.0

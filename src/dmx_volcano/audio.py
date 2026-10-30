@@ -18,13 +18,15 @@ Selection lives in SoundBank. Every phase owns role pools
            the phase runs
 
 plus transition stingers ([audio.transitions] "dormant->active") layered on
-top when the show makes exactly that move. Every pick is random and never
-repeats the previous pick while the pool has alternatives. Missing files are
+top when the show makes exactly that move, and cue sounds ([[cues.eruption]]
+action = "sound", file = one file or a pool) at fixed moments in the eruption
+timeline. Every pick is random and never repeats the previous pick while the
+pool has alternatives. Missing files are
 tolerated at play time (sim mode without assets) and reported by
 missing_files() so startup can flag them instead of opening night.
 
-LayeredPlayer owns the running processes for the current phase and is
-ticked from the frame loop.
+LayeredPlayer owns the running processes and is ticked from the frame loop.
+The corpus itself is rendered by tools/prep_audio.py (docs/AUDIO.md).
 """
 
 import random
@@ -41,6 +43,9 @@ _PLAYERS = ["afplay", "aplay", "mpg123"]
 AUDIO_SUFFIXES = {".wav", ".mp3", ".ogg", ".flac", ".aiff", ".aif", ".m4a"}
 
 ROLES = ("start", "loop", "bg", "accent")
+
+# assets/raw/: the downloads tools/prep_audio.py renders into assets/sounds/.
+RAW_DIR = "raw"
 
 # Accents already sounding before another may fire — caps process spam when
 # the sim clock fast-forwards and keeps real nights from stacking chaos.
@@ -87,6 +92,8 @@ def resolve_asset(assets_dir: Path, name: str) -> Path:
     parts = rel.parts
     if rel.is_absolute() or not parts or any(p.startswith(".") for p in parts):
         raise ValueError(f"invalid asset path {name!r}")
+    if parts[0] == RAW_DIR:
+        raise ValueError(f"{name!r} is an unprocessed download — play its rendered copy")
     if rel.suffix.lower() not in AUDIO_SUFFIXES:
         allowed = ", ".join(sorted(AUDIO_SUFFIXES))
         raise ValueError(f"unsupported audio type {rel.suffix!r} — use {allowed}")
@@ -94,13 +101,17 @@ def resolve_asset(assets_dir: Path, name: str) -> Path:
 
 
 def list_assets(assets_dir: Path) -> list[str]:
-    """Audio files present anywhere under assets/, as sorted relative paths."""
+    """Audio files present under assets/, as sorted relative paths — minus
+    assets/raw/: unprocessed downloads, never played (and never previewed
+    out the speaker at their raw, unlevelled loudness)."""
     if not assets_dir.is_dir():
         return []
     return sorted(
-        p.relative_to(assets_dir).as_posix()
+        rel.as_posix()
         for p in assets_dir.rglob("*")
-        if p.is_file() and p.suffix.lower() in AUDIO_SUFFIXES
+        if p.is_file()
+        and p.suffix.lower() in AUDIO_SUFFIXES
+        and (rel := p.relative_to(assets_dir)).parts[0] != RAW_DIR
     )
 
 
@@ -157,6 +168,7 @@ class SoundBank:
     assets_dir: Path
     phases: dict[str, PhaseAudio] = field(default_factory=dict)
     transitions: dict[tuple[str, str], list[str]] = field(default_factory=dict)
+    cues: dict[float, list[str]] = field(default_factory=dict)  # by cue time
     rng: random.Random = field(default_factory=random.Random)
     _last: dict[str, str] = field(default_factory=dict, repr=False)
 
@@ -208,6 +220,13 @@ class SoundBank:
     def transition_sound(self, frm: str, to: str) -> Path | None:
         return self._pick(f"{frm}->{to}", self.transitions.get((frm, to)))
 
+    def add_cue(self, t: float, value: str | list[str]) -> None:
+        """Register an eruption sound cue's pool (keyed by its time)."""
+        self.cues[t] = _pool(value)
+
+    def cue_sound(self, t: float) -> Path | None:
+        return self._pick(f"cue@{t}", self.cues.get(t))
+
     def accent_delay(self, phase: str) -> float:
         lo, hi = self.phases[phase].accent_interval
         return self.rng.uniform(lo, hi)
@@ -224,6 +243,7 @@ class SoundBank:
         """Every filename any pool can play."""
         files = {f for pools in self.phases.values() for f in pools.files()}
         files |= {f for pool in self.transitions.values() for f in pool}
+        files |= {f for pool in self.cues.values() for f in pool}
         return files
 
     def missing_files(self) -> list[str]:
@@ -253,15 +273,19 @@ class SoundBank:
                 f"{frm}->{to}": entries(pool)
                 for (frm, to), pool in self.transitions.items()
             },
+            "cues": {f"t={t:g}s": entries(pool) for t, pool in self.cues.items()},
         }
 
 
 class LayeredPlayer:
-    """The running audio for the current phase, ticked from the frame loop.
+    """The running audio, ticked from the frame loop.
 
-    On phase entry: the old phase's layers stop, the transition stinger (if
-    that exact move has one) and the new phase's `start` one-shot fire, and
-    the `loop`/`bg` layers spawn. Each tick: ended loop/bg players respawn
+    On phase entry: the old phase's `loop`/`bg` layers stop, the transition
+    stinger (if that exact move has one) and the new phase's `start` one-shot
+    fire, and the new `loop`/`bg` layers spawn. One-shots — stingers, starts,
+    accents, cue sounds — are never cut by a phase change: they ring out to
+    their own (faded) end, so the eruption's tail decays into the cooldown
+    instead of stopping dead. Only stop_all() kills them. Each tick: ended loop/bg players respawn
     with a fresh pick, and `accent` one-shots fire at randomly sampled
     intervals. Ticks use show time, so accents freeze with the sim clock's
     pause and compress under fast-forward (capped by
@@ -271,22 +295,29 @@ class LayeredPlayer:
     def __init__(self, bank: SoundBank) -> None:
         self.bank = bank
         self.phase: str | None = None  # None until the first enter_phase
-        self._stinger: subprocess.Popen | None = None
-        self._start: subprocess.Popen | None = None
         self._layers: dict[str, subprocess.Popen | None] = {"loop": None, "bg": None}
-        self._accents: list[subprocess.Popen] = []
+        self._accents: list[subprocess.Popen] = []  # this phase's, for the cap
+        self._ringing: list[subprocess.Popen] = []  # every other one-shot
         self._accent_at: float | None = None
 
     def enter_phase(self, frm: str, to: str) -> None:
-        self.stop_all()
+        for proc in self._layers.values():
+            stop(proc)
+        self._layers = {"loop": None, "bg": None}
+        self._ringing = [p for p in self._ringing + self._accents if p.poll() is None]
+        self._accents = []
         self.phase = to
         self._accent_at = None  # first accent scheduled on the next tick
-        stinger = self.bank.transition_sound(frm, to)
-        self._stinger = play(stinger) if stinger else None
-        one_shot = self.bank.phase_sound(to, "start")
-        self._start = play(one_shot) if one_shot else None
+        self.play_one_shot(self.bank.transition_sound(frm, to))
+        self.play_one_shot(self.bank.phase_sound(to, "start"))
         for role in self._layers:
             self._layers[role] = self._spawn(role)
+
+    def play_one_shot(self, path: Path | None) -> None:
+        """Fire a sound that rings out to its end (stinger, start, cue)."""
+        proc = play(path) if path else None
+        if proc is not None:
+            self._ringing.append(proc)
 
     def tick(self, now: float) -> None:
         if self.phase is None:
@@ -314,15 +345,11 @@ class LayeredPlayer:
             self._accent_at = now + self.bank.accent_delay(self.phase)
 
     def stop_all(self) -> None:
-        stop(self._stinger)
-        stop(self._start)
-        for proc in self._layers.values():
+        for proc in [*self._layers.values(), *self._accents, *self._ringing]:
             stop(proc)
-        for proc in self._accents:
-            stop(proc)
-        self._stinger = self._start = None
         self._layers = {"loop": None, "bg": None}
         self._accents = []
+        self._ringing = []
         self.phase = None
         self._accent_at = None
 

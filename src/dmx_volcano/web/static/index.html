@@ -1263,6 +1263,8 @@ async function loadAudio() {
     }
     for (const [arrow, entries] of Object.entries(a.transitions))
         audioRow(root, arrow.replace("->", " → "), entries);
+    for (const [at, entries] of Object.entries(a.cues ?? {}))
+        audioRow(root, `eruption cue · ${at}`, entries);
     const unassigned = a.assets.filter((f) => !f.assigned)
         .map((f) => ({ file: f.file, unassigned: true }));
     if (unassigned.length)
