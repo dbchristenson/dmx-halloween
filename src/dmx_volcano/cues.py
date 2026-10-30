@@ -88,7 +88,7 @@ def validate_timeline(timeline: list[Cue]) -> None:
 # burst-end to burst-start) or the gate will deny them — the gate wins.
 ERUPTION = [
     Cue(0.5, "co2_burst", {"duration": 0.5}),
-    Cue(6.5, "co2_burst", {"duration": 5.0}),  # 5.5s after the pop ends
+    Cue(6.5, "co2_burst", {"duration": 2.5}),  # 5.5s after the pop ends
 ]
 
 

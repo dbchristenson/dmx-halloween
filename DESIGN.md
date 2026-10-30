@@ -204,8 +204,8 @@ dwell distributions, eruptions/hour, manual-vs-auto ratio.
 Every granted CO2 burst consumes `duration x rate_kg_per_s` (rate must be
 measured: weigh tank, timed burst, weigh again — or, without a scale, sum
 one tank's granted CO2 seconds on the rehearsal night). Budget: 5
-eruptions/hour × 4h × 4 nights = 80 eruptions; at 5.5s of CO2 each that is
-440s of spray. MOKA's FAQ puts a 40L (~23kg) cylinder at 40–50s of spray,
+eruptions/hour × 4h × 4 nights = 80 eruptions; at 3.0s of CO2 each that is
+240s of spray. MOKA's FAQ puts a 40L (~23kg) cylinder at 40–50s of spray,
 and we have four large tanks, so the rehearsal decides whether the
 per-eruption CO2 or the pacing has to give. Usage persists in
 `var/co2_tank.json` — restarts never "refill" the tank; only the web UI's

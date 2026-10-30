@@ -31,8 +31,8 @@ scale = 90.0
 # sprays for 40-50s, i.e. ~0.5 kg/s. Our tanks are unweighed. The rehearsal
 # night measures it: the log's granted co2_burst durations summed over one
 # tank give seconds/tank; set rate_kg_per_s = capacity_kg / that.
-# Budget: 5 eruptions/h x 4h x 4 nights = 80 eruptions; at 5.5s of CO2 per
-# eruption that is 440s of spray — ~10 tanks at MOKA's 40-50s/tank. Usage persists in state_file across
+# Budget: 5 eruptions/h x 4h x 4 nights = 80 eruptions; at 3.0s of CO2 per
+# eruption that is 240s of spray — ~5-6 tanks at MOKA's 40-50s/tank. Usage persists in state_file across
 # restarts; reset via the web UI when you swap tanks.
 
 [co2]
@@ -306,7 +306,7 @@ duration = 0.5           # the pop: ends at 1.0s, 5.5s before the big one
 [[cues.eruption]]
 t = 6.5
 action = "co2_burst"
-duration = 5.0           # the big one: ends at 11.5s, lights white-out over it
+duration = 2.5           # the big one: ends at 9.0s, lights white-out over it
 
 [[cues.eruption]]
 t = 6.5

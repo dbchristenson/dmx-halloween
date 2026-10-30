@@ -239,7 +239,7 @@ Timing rules to respect (or the gate denies the cue):
 
 - CO2: each burst ≤ **6s**, ≥ **5s** from one burst's end to the next one's
   start. In the 12s eruption that fits two bursts: a 0.5s pop, then the
-  5s big one.
+  2.5s big one.
 - Keep the last pyro cue comfortably before `eruption_duration` — a permit
   can't outlive its burst, but a cue landing after the phase ends never fires.
 
