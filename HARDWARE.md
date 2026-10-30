@@ -1,7 +1,7 @@
 # Hardware Procurement List
 
 Items still needed as of August 2026. Owned already: MK-F01 fogger, MK-C09 CO2
-cannon, speakers. In transit: H-E01A flame machine.
+cannon, speakers (Alto TS408 + Polk PSW10 sub, § 6). In transit: H-E01A flame machine.
 
 ## 1. Controller — Raspberry Pi
 
@@ -81,7 +81,9 @@ B&H, Full Compass. Accu-Cable and Hosa are solid brands.
 | 3-pin DMX cables, 10ft (Accu-Cable AC3PDMX or Hosa DMX-3xx) | ~10 | Daisy chain: 8 PARs + fogger + CO2 + flame ≈ 11 hops; most short | [Accu-Cable at Sweetwater](https://www.sweetwater.com/c1447--Accu-Cable--Lighting_Cables) ($12–56 by length) |
 | 3-pin DMX cables, 25ft | 2–3 | Adapter→first fixture, and any long hops across the volcano | [AC3PDMX25](https://www.sweetwater.com/store/detail/AC3PDMX25--accu-cable-ac3pdmx25-3-pin-3-conductor-dmx-cable-25-foot) |
 | 3-pin DMX terminator (Hosa DMT-414) | 1 (+1 spare) | Terminate the last fixture in the chain — prevents signal reflections; cheap insurance on a line with pyro | Sweetwater, ~$11 |
-| 3.5mm aux cable (male-male), length to suit speaker placement | 1 | Pi → speakers | any (Hosa/Amazon Basics) |
+| 3.5mm stereo splitter (1 male → 2 female) | 1 | Split the Pi's jack to both speakers (§ 6) | any (Hosa/Amazon Basics) |
+| 3.5mm TRS → dual ¼" TS cable, length to suit placement | 1 | Pi → TS408 ch1/ch2 | e.g. Hosa CMP-1xx series |
+| 3.5mm TRS → dual RCA cable, length to suit placement | 1 | Pi → PSW10 RCA line in | e.g. Hosa CMR-2xx series |
 
 Buy **actual DMX cable (110Ω), not microphone XLR cable** — mic cable is the
 classic source of flickering/glitching DMX runs.
@@ -99,6 +101,23 @@ on October 30th (cable, terminator, adapter).
 - Outdoor power strip or stake for the PAR cluster.
 - Weather cover for the Pi + Enttec (dry box with cable glands, or at minimum
   a covered tote).
+
+## 6. Speakers (owned)
+
+Wiring and level setting: `docs/DEPLOYMENT.md` § Audio out. Specs below are
+from retailer listings — confirm against the manuals.
+
+- **Alto TS408** — 8" two-way powered PA speaker, 1000W continuous. Response
+  62Hz–20kHz (±3dB), 52Hz at −10dB: it can't carry the deep rumble alone.
+  Two XLR/¼" combo inputs, each with gain and a Mic/Line switch, plus an XLR
+  link out. Built-in limiter (red input LED) and clip/thermal/overdrive
+  protection — hard to hurt in normal use.
+- **Polk PSW10** — 10" powered home subwoofer, 50W RMS. Response ~35–200Hz
+  (40–160Hz ±3dB), variable low-pass crossover 80–160Hz, phase switch, RCA
+  line and speaker-level inputs. No confirmed limiter: **this is the
+  component most at risk** from long nights of rumble. The corpus is prepped
+  for it (high-pass ~30Hz, controlled sub-bass in the beds, peak headroom
+  for stacked layers) and its gain stays modest.
 
 ## Rough budget
 
