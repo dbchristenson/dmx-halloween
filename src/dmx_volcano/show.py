@@ -168,6 +168,11 @@ class ShowEngine:
         self._moves: list[Transition] = []
         self._flame_plan: list[Shot] = []  # scheduled, not yet started
         self._flame_live: list[tuple[Shot, bool]] = []  # started: (shot, granted)
+        # When the latest CO2 burst ends: the eruption's scripted last cue end
+        # (so rehearsal times the aftermath like show night), pushed later by
+        # any granted burst that actually ends later.
+        self._co2_end = float("-inf")
+        self._co2_last_cue = max((end for _, end in self.co2_windows), default=float("-inf"))
         self._prev_phase = machine.phase
         machine.on_transition = self._on_transition
 
@@ -191,9 +196,19 @@ class ShowEngine:
         phase = self.machine.phase
         for move in self._moves:
             self._flame_plan = self.flame.plan(
-                move.frm.value, move.to.value, move.cause, now
+                move.frm.value, move.to.value, move.cause, now, co2_end=self._co2_end
             )
         self._moves.clear()
+        if self._flame_plan and phase is Phase.DORMANT and (
+            self.machine.hold or self.machine.paused
+            or (self.console is not None and self.console.enabled)
+        ):
+            # The eruption's aftermath waits in dormant; an operator stopping
+            # the show (hold, pause, test mode) cancels it.
+            for shot in self._flame_plan:
+                self.log.write("flame_pattern", source=shot.source, pattern=shot.pattern,
+                               pulses=shot.pulses, granted=False, cancelled=True)
+            self._flame_plan = []
         while self._flame_plan and self._flame_plan[0].start <= now:
             self._fire_shot(self._flame_plan.pop(0), now)
         self._flame_live = [
@@ -209,6 +224,7 @@ class ShowEngine:
 
         if phase is Phase.ERUPTION and self._prev_phase is not Phase.ERUPTION:
             self.runner.start(now)
+            self._co2_end = max(self._co2_end, now + self._co2_last_cue)
             if self.state is not None:
                 self.state.eruption_count += 1
             self.log.write("eruption_start", armed=self.gate.pyro_enabled)
@@ -314,6 +330,7 @@ class ShowEngine:
             granted = self.gate.request_burst("co2", {ch}, duration, now=now)
             if granted:
                 self.overlay.set(ch, 255, now + duration)
+                self._co2_end = max(self._co2_end, now + duration)
                 if track_co2:
                     self._track_co2(duration)
         else:

@@ -31,9 +31,9 @@ Invariants enforced here (see DESIGN.md "Safety invariants"):
   clamps. One lock serializes them, so a disarm can never be undone by a
   clamp() that was mid-way through rebuilding the permit list.
 
-Show activation limits: flame <= 10s, CO2 <= 4s.
+Show activation limits: flame <= 10s, CO2 <= 6s.
 Flame: at most 10s of fire in any 13s window; pulses >= 0.15s and >= 0.25s
-apart; none within 60s after CO2.
+apart; none within 10s after CO2.
 CO2: minimum 5s gap (MOKA MK-C09 product page: "two jet time intervals
 cannot be short by 5 seconds").
 """
@@ -43,7 +43,9 @@ import time
 from dataclasses import dataclass, field
 
 # Per-fixture operational limits, seconds.
-MAX_BURST = {"flame": 10.0, "co2": 4.0}
+# CO2's cap is ours, not MOKA's (their page only sets the 5s gap); raised
+# from 4s on 2026-10-30 for a 5s big burst.
+MAX_BURST = {"flame": 10.0, "co2": 6.0}
 # Flame's gap applies between pulses inside a pattern as well as between
 # bursts: on the 2026-10-24 bench, three 0.15s pulses with no gap left the
 # third unlit (unburnt gas, below); 0.25s gaps lit every pulse.
@@ -57,10 +59,11 @@ FIRE_WINDOW = {"flame": (13.0, 10.0)}
 MIN_PULSE = {"flame": 0.15, "co2": 0.0}
 # CO2 leaves the cannon cold and ~1.5x heavier than air: after the visible
 # plume clears it still pools in the crater bowl around the flame head, where
-# it can stop the flame from igniting. No published dissipation figure exists,
-# so this is a deliberately long margin; the show never comes near it
-# (dormant lasts >= 120s after every eruption).
-FLAME_AFTER_CO2 = 60.0
+# it can stop the flame from igniting. No published dissipation figure exists.
+# Was a 60s margin; lowered to 10s on 2026-10-30 after the bench showed the
+# flame lighting cleanly 10s after a CO2 burst. The show's eruption->dormant
+# pattern is scheduled to land right on this line (flame.py).
+FLAME_AFTER_CO2 = 10.0
 # gap_remaining reports "ready" once at least this much fire is grantable.
 READY_FIRE = 1.0
 _EPS = 1e-9

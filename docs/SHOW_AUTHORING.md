@@ -180,6 +180,7 @@ clear_before_co2 = 1.5   # the finale ends this long before the first CO2 cue
 "active->imminent"   = [".--..-"]
 "dormant->imminent"  = [".--..-"]       # manual trigger
 "imminent->eruption" = ["...---"]       # the finale
+"eruption->dormant"  = ["-.-"]          # the aftermath
 
 [flame.imminent]
 patterns = ["-.-.", "..--.."]
@@ -193,8 +194,10 @@ rest = [1.0, 2.5]        # random pause between patterns
   back with a random `rest`, then the finale. The finale plays at the end
   of imminent and finishes `clear_before_co2` before the eruption's first
   CO2 cue; a finale that can't fit is refused at startup.
-- No flame in the eruption or after it: `"eruption->..."` keys are refused
-  at startup, and the gate refuses flame for 60s after any CO2 burst.
+- No flame in the eruption: the gate refuses flame for 10s after any CO2
+  burst. `"eruption->dormant"` (the aftermath) waits that out: its first
+  fire lands 10s after the eruption's last CO2 burst ends, early in
+  dormant. Holding, pausing or opening test mode before then cancels it.
 - An operator hold's active → dormant fires nothing.
 - Each pattern opens the safety channel 0.5s before its first pulse and
   holds it to the last; fire rises only inside a pulse. The gate grants the
@@ -227,15 +230,16 @@ Action reference:
 |---|---|---|
 | `sound` | `file` (one file or a pool) | plays once from `assets/`, rings out past the eruption |
 | `fog` | `level` (0–255) | holds until the eruption ends (overrides `[looks.eruption] fog`) |
-| `co2_burst` | `duration` (s) | max 4s, min 5s gap between bursts; consumes tracked CO2 |
+| `co2_burst` | `duration` (s) | max 6s, min 5s gap between bursts; consumes tracked CO2 |
 | `pars` / `fade` | — | currently no-ops; eruption lighting comes from `[looks.eruption]` |
 
 The eruption has no flame: the CO2 would smother it (section 3).
 
 Timing rules to respect (or the gate denies the cue):
 
-- CO2: each burst ≤ **4s**, ≥ **5s** from one burst's end to the next one's
-  start. In the 10s eruption that fits two bursts: a pop, then the big one.
+- CO2: each burst ≤ **6s**, ≥ **5s** from one burst's end to the next one's
+  start. In the 12s eruption that fits two bursts: a 0.5s pop, then the
+  5s big one.
 - Keep the last pyro cue comfortably before `eruption_duration` — a permit
   can't outlive its burst, but a cue landing after the phase ends never fires.
 
@@ -248,7 +252,7 @@ before it is `imminent_duration` (30s). Both are plain numbers to edit.
 [phases]
 p_erupt = 0.7             # chance active escalates (vs. fizzling back)
 imminent_duration = 30.0
-eruption_duration = 10.0
+eruption_duration = 12.0
 cooldown = 60.0           # quiet time after each eruption
 
 [phases.dwell.dormant]

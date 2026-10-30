@@ -171,7 +171,7 @@ def test_min_gap_measured_from_fire_end_to_next_fire_start():
         gate.request_burst("flame", {FLAME_FIRE}, 0.5, now=100.0, arm_lead=-1.0)
 
 
-@pytest.mark.parametrize('kind,channel,duration', [('flame', FLAME_FIRE, 10.0), ('co2', CO2_JET, 4.0)])
+@pytest.mark.parametrize('kind,channel,duration', [('flame', FLAME_FIRE, 10.0), ('co2', CO2_JET, 6.0)])
 def test_configured_activation_limit_grants_exact_max_and_rejects_longer(kind, channel, duration):
     gate = armable_gate()
     gate.arm()

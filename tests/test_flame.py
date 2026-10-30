@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from dmx_volcano.flame import FlameConfig, FlamePlanner, Timing, length, parse_pattern
+from dmx_volcano.safety import FLAME_AFTER_CO2
 
 CONFIG = Path(__file__).resolve().parents[1] / "config" / "show.toml"
 LEAD = 0.5
@@ -46,8 +47,8 @@ def test_gap_too_tight_to_ignite_is_refused_at_load():
     FlameConfig.from_config({"gap": 0.0, "imminent": {"patterns": ["-"]}})  # one pulse: no gap
 
 
-@pytest.mark.parametrize("key", ["eruption->dormant", "dormant->eruption", "active"])
-def test_moves_after_co2_or_impossible_are_refused(key):
+@pytest.mark.parametrize("key", ["dormant->eruption", "eruption->imminent", "active"])
+def test_impossible_moves_are_refused(key):
     with pytest.raises(ValueError):
         FlameConfig.from_config({"transitions": {key: ["."]}})
 
@@ -70,6 +71,16 @@ def test_imminent_plan_never_overlaps_and_finale_ends_clear_of_co2(seed):
         assert a.end(LEAD) + cfg.rest[0] <= b.start + 1e-9
     # imminent ends at 130; first CO2 at eruption t=1.0 -> flame done by 129.5.
     assert shots[-1].end(LEAD) == pytest.approx(130.0 + 1.0 - cfg.clear_before_co2)
+
+
+def test_aftermath_waits_out_the_co2_lockout():
+    cfg = show_flame()
+    shots = planner(cfg).plan("eruption", "dormant", "timer", 112.0, co2_end=111.5)
+    assert [s.source for s in shots] == ["eruption->dormant"]
+    assert shots[0].fire_windows(LEAD)[0][0] == pytest.approx(111.5 + FLAME_AFTER_CO2)
+    # CO2 long gone (e.g. never fired): the aftermath starts with dormant.
+    shots = planner(cfg).plan("eruption", "dormant", "timer", 112.0)
+    assert shots[0].start == 112.0
 
 
 def test_hold_and_eruption_entry_plan_no_flame():

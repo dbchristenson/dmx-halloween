@@ -16,7 +16,7 @@
 #     nothing else. Bench pulse lengths with the test console's pattern row
 #     (dot/dash/gap are editable there); the H-E01A safety channel is driven
 #     only under a SafetyGate permit, identical to the show path.
-#   - After any CO2 burst the gate refuses flame for 60s (lingering CO2 can
+#   - After any CO2 burst the gate refuses flame for 10s (lingering CO2 can
 #     stop it igniting) — test flame first, or wait out the countdown.
 
 [show]

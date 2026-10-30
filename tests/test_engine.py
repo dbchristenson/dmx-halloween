@@ -12,6 +12,7 @@ import pytest
 
 from dmx_volcano.driver.fake import FakeDriver
 from dmx_volcano.phases import Phase
+from dmx_volcano.safety import FLAME_AFTER_CO2
 from dmx_volcano.show import FLAME_ARM_LEAD, FLAME_SAFETY_ARM_VALUE, build_engine
 
 CONFIG = Path(__file__).resolve().parents[1] / "config" / "show.toml"
@@ -184,14 +185,48 @@ def test_eruption_count_cooldown_and_co2_usage(engine):
     engine.gate.arm()
     engine.machine.request_eruption()
     E = engine.machine.config.imminent_duration
-    run(engine, 0.0, E + 12.0)  # imminent + eruption (10s) ends into cooldown
+    run(engine, 0.0, E + 13.0)  # imminent + eruption (12s) ends into cooldown
     assert engine.state.eruption_count == 1
     # Both CO2 cues burned duration * rate.
     total = sum(b - a for a, b in engine.co2_windows)
     assert engine.co2.used_kg == pytest.approx(total * engine.co2.rate_kg_per_s)
     engine.machine.request_eruption()  # inside 60s cooldown -> ignored
-    run(engine, E + 12.0, E + 17.0)
+    run(engine, E + 13.0, E + 18.0)
     assert engine.state.eruption_count == 1
+
+
+def test_aftermath_flame_fires_once_co2_lockout_clears(engine):
+    engine.gate.arm()
+    shots = record_shots(engine)
+    engine.machine.request_eruption()
+    E = engine.machine.config.imminent_duration
+    co2_end = E + max(end for _, end in engine.co2_windows)
+    frames = run(engine, 0.0, co2_end + FLAME_AFTER_CO2 + 5.0)
+    aftermath = [s for s in shots if s.source == "eruption->dormant"]
+    assert len(aftermath) == 1
+    pulses = aftermath[0].fire_windows(FLAME_ARM_LEAD)
+    assert pulses[0][0] == pytest.approx(co2_end + FLAME_AFTER_CO2, abs=2 * DT)
+    fire_ch = engine.rig["flame"].channel("fire")
+    edges = tuple(e for w in pulses for e in w)
+    for t, frame in frames:
+        if t < E or near_edge(t, edges):
+            continue
+        expect = 255 if any(a <= t < b for a, b in pulses) else 0
+        assert frame[fire_ch - 1] == expect, f"aftermath flame wrong at t={t:.2f}"
+
+
+def test_hold_after_the_eruption_cancels_the_aftermath(engine):
+    engine.gate.arm()
+    shots = record_shots(engine)
+    engine.machine.request_eruption()
+    E = engine.machine.config.imminent_duration
+    run(engine, 0.0, E + 13.0)
+    assert engine.machine.phase is Phase.DORMANT
+    engine.machine.hold = True
+    frames = run(engine, E + 13.0 + DT, E + 30.0)
+    assert not [s for s in shots if s.source == "eruption->dormant"]
+    fire_ch = engine.rig["flame"].channel("fire")
+    assert all(f[fire_ch - 1] == 0 for _, f in frames)
 
 
 def test_co2_alert_marks_once_when_threshold_crossed(engine):
@@ -230,7 +265,7 @@ def test_overlong_pyro_cue_refused_at_startup_even_in_rehearsal(tmp_path, monkey
     monkeypatch.chdir(tmp_path)
     cfg = tmp_path / "show.toml"
     cfg.write_text(
-        CONFIG.read_text().replace("duration = 2.0", "duration = 4.5", 1)
+        CONFIG.read_text().replace("duration = 5.0", "duration = 6.5", 1)
     )
     with pytest.raises(ValueError, match="duration must be"):
         build_engine(cfg, FakeDriver())

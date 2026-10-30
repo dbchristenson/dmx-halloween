@@ -1057,7 +1057,7 @@ function buildTestPanel() {
         grid.appendChild(b);
         litPars[f.name] = b;
     }
-    const durs = { flame: [0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 3.0, 5.0, 10.0], co2: [1.0, 2.0, 3.0, 4.0] };
+    const durs = { flame: [0.1, 0.15, 0.2, 0.3, 0.5, 1.0, 3.0, 5.0, 10.0], co2: [1.0, 2.0, 3.0, 4.0, 5.0, 6.0] };
     const limits = layout.limits;
     for (const [kind, sel] of [["flame", $("flameDur")], ["co2", $("co2Dur")]])
         for (const d of durs[kind].filter((d) => d >= limits.min_pulse[kind] && d <= limits.max_burst[kind]))

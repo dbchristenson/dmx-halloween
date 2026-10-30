@@ -12,10 +12,12 @@ sets the pulse lengths and the gap between pulses, and holds the pools:
 - [flame.imminent] patterns / rest: imminent's own flame, packed between its
   entry pattern and the finale with a random rest between patterns.
 
-No pattern may start in the eruption or after it ("eruption->..." keys are
-refused): CO2 pools in the crater and can stop the flame igniting, which
-would release unburnt gas. The SafetyGate refuses the same thing on its own
-(FLAME_AFTER_CO2).
+- "eruption->dormant" is the aftermath. It waits out FLAME_AFTER_CO2 from the
+  end of the eruption's last CO2 burst, then fires early in dormant.
+
+No pattern may fire in the eruption or within FLAME_AFTER_CO2 of a CO2
+burst: CO2 pools in the crater and can stop the flame igniting, which
+would release unburnt gas. The SafetyGate refuses the same thing on its own.
 
 Each pattern goes to the gate as one sequence: the safety channel opens
 `lead` seconds ahead of the first pulse and holds through the last; the fire
@@ -26,7 +28,7 @@ repeats the previous pick while the pool has alternatives.
 import random
 from dataclasses import dataclass, field
 
-from .safety import FIRE_WINDOW, MAX_BURST, MIN_GAP, MIN_PULSE
+from .safety import FIRE_WINDOW, FLAME_AFTER_CO2, MAX_BURST, MIN_GAP, MIN_PULSE
 
 # The moves the phase machine can make that may carry flame.
 MOVES = {
@@ -35,8 +37,10 @@ MOVES = {
     ("active", "imminent"),
     ("dormant", "imminent"),
     ("imminent", "eruption"),
+    ("eruption", "dormant"),
 }
 FINALE = ("imminent", "eruption")
+AFTERMATH = ("eruption", "dormant")
 
 
 @dataclass(frozen=True)
@@ -118,11 +122,6 @@ class FlameConfig:
             move = (frm.strip(), to.strip())
             if not sep:
                 raise ValueError(f"[flame.transitions] key must look like 'dormant->active', got {key!r}")
-            if move[0] == "eruption":
-                raise ValueError(
-                    f"[flame.transitions] {key!r}: no flame after the eruption — "
-                    "lingering CO2 can stop it igniting"
-                )
             if move not in MOVES:
                 raise ValueError(f"[flame.transitions] {key!r} is not a move the show makes")
             transitions[move] = list(pool)
@@ -168,10 +167,17 @@ class FlamePlanner:
     rng: random.Random = field(default_factory=random.Random)
     _last: dict[str, str] = field(default_factory=dict, repr=False)
 
-    def plan(self, frm: str, to: str, cause: str, now: float) -> list[Shot]:
+    def plan(
+        self, frm: str, to: str, cause: str, now: float, co2_end: float = float("-inf")
+    ) -> list[Shot]:
+        """`co2_end` is when the latest CO2 burst ends (absolute); only the
+        aftermath uses it, waiting until its first fire clears the lockout."""
         if cause == "hold" or (frm, to) == FINALE:
             return []  # the finale was already scheduled inside imminent
-        entry = self._shot(f"{frm}->{to}", self.config.transitions.get((frm, to)), now)
+        start = now
+        if (frm, to) == AFTERMATH:
+            start = max(now, co2_end + FLAME_AFTER_CO2 - self.lead)
+        entry = self._shot(f"{frm}->{to}", self.config.transitions.get((frm, to)), start)
         if to != "imminent":
             return [entry] if entry else []
         return self._plan_imminent(entry, now)

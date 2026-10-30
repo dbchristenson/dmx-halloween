@@ -177,8 +177,8 @@ def test_co2_hold_accounts_for_actual_duration_not_maximum(engine):
 def test_co2_hold_at_limit_accounts_for_maximum(engine):
     start(engine, 'co2')
     engine.step(0)
-    engine.step(4.1)
-    assert engine.co2.used_kg == pytest.approx(4 * engine.co2.rate_kg_per_s)
+    engine.step(6.1)
+    assert engine.co2.used_kg == pytest.approx(6 * engine.co2.rate_kg_per_s)
 
 
 def test_release_sends_zero_before_tank_persistence_and_survives_io_error(engine, monkeypatch):

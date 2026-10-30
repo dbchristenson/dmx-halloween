@@ -40,7 +40,7 @@ These are non-negotiable and reviewed against every change:
 4. **Restarts come back disarmed.** Re-arming is always a human act, never
    remembered state. The show engine (systemd) auto-starts into dormant with
    pyro disabled.
-5. **CO2 operational limits encoded in software:** bursts ≤4s, ≥5s between bursts (MOKA's MK-C09 page: "two jet time intervals
+5. **CO2 operational limits encoded in software:** bursts ≤6s (our cap, raised from 4s on 2026-10-30 for a 5s big burst), ≥5s between bursts (MOKA's MK-C09 page: "two jet time intervals
    cannot be short by 5 seconds"), siphon/dip-tube tank required, 3m
    clearance in spray direction.
    **Flame limits:** bursts ≤10s, and at most 10s of fire in any rolling 13s
@@ -52,15 +52,17 @@ These are non-negotiable and reviewed against every change:
    **Unburnt gas:** a flame pulse that fails to ignite releases LPG, which
    is heavier than air and pools in the crater for the next pulse to light.
    So pulses shorter than `safety.MIN_PULSE` are refused (raise it to the
-   bench-verified ignition floor), and flame is refused for 60s after any
+   bench-verified ignition floor), and flame is refused for 10s after any
    CO2 burst ends: CO2 is cold and ~1.5x heavier than air, pools in the
    crater after the visible plume clears, and can stop the flame igniting.
-   No published dissipation figure exists; 60s is a deliberately long
-   margin the show never comes near (dormant lasts ≥120s after an eruption).
+   No published dissipation figure exists. This was a 60s margin; lowered
+   to 10s on 2026-10-30 after the bench showed the flame lighting cleanly
+   10s after CO2, so the show can fire an aftermath pattern. The show now
+   runs right at this line, not far from it.
    The crater is not airtight (1x4s across a frame under OSB, gaps along
    the sheet edges, back open while the inside is still being worked on),
-   so gas spills out rather than sitting for long. The margins stay anyway:
-   they cost the show nothing, and closing the back reduces that venting.
+   so gas spills out rather than sitting for long. Closing the back reduces
+   that venting — re-bench the 10s if it is closed.
 6. **DMX-loss behavior is bench-tested per fixture** (kill signal mid-effect,
    observe) before pyro ever runs on a show night. Not documented publicly for
    any of the three Moka units. Flame machine gets a supervised bench test on
@@ -82,7 +84,7 @@ pulsed "flame balls".
 
 | Phase | Fogger | Flame | CO2 |
 |---|---|---|---|
-| Dormant | light duty cycle | — | — |
+| Dormant | light duty cycle | aftermath pattern, 10s after the last CO2 | — |
 | Active | heavier duty cycle | — | — |
 | Imminent | heavy duty cycle | patterns throughout | — |
 | Eruption | full, constant | **never** | a pop, then the big burst |
@@ -93,7 +95,7 @@ pulsed "flame balls".
   lighting heartbeat, heavy fog, flame patterns, warning sound. Every
   eruption passes through it, including manual triggers: nobody can skip
   the warning. It cannot fizzle; imminent always erupts.
-- **Eruption** (10s): fixed scripted cue timeline — full sound, strobing
+- **Eruption** (12s): fixed scripted cue timeline — full sound, strobing
   pars, white crater, constant fog, two CO2 bursts — then mandatory
   cooldown back to dormant.
 
@@ -101,9 +103,10 @@ Flame patterns are morse-like strings (`.` dot, `-` dash) picked at random
 per move, no back-to-back repeats, more flame the nearer the eruption.
 Each plays at the start of the new phase, with every light flaring orange
 on each pulse — except the imminent → eruption finale, which plays at the
-end of imminent and finishes 1.5s before the first CO2 burst. An operator
-hold's active → dormant fires nothing; eruption → dormant never fires
-(lingering CO2).
+end of imminent and finishes 1.5s before the first CO2 burst, and the
+eruption → dormant aftermath, which waits until 10s after the big CO2
+burst ends (lingering CO2) and is cancelled if the operator holds, pauses
+or opens test mode first. An operator hold's active → dormant fires nothing.
 
 The fogger only fogs while its pump runs, and running the pump cools its
 heater: run it too long and the MK-F01 stops on its own to reheat, which
@@ -201,8 +204,8 @@ dwell distributions, eruptions/hour, manual-vs-auto ratio.
 Every granted CO2 burst consumes `duration x rate_kg_per_s` (rate must be
 measured: weigh tank, timed burst, weigh again — or, without a scale, sum
 one tank's granted CO2 seconds on the rehearsal night). Budget: 5
-eruptions/hour × 4h × 4 nights = 80 eruptions; at 2.5s of CO2 each that is
-200s of spray. MOKA's FAQ puts a 40L (~23kg) cylinder at 40–50s of spray,
+eruptions/hour × 4h × 4 nights = 80 eruptions; at 5.5s of CO2 each that is
+440s of spray. MOKA's FAQ puts a 40L (~23kg) cylinder at 40–50s of spray,
 and we have four large tanks, so the rehearsal decides whether the
 per-eruption CO2 or the pacing has to give. Usage persists in
 `var/co2_tank.json` — restarts never "refill" the tank; only the web UI's

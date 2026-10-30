@@ -38,7 +38,7 @@ Open the hamburger menu and choose **Remote Control** (`/remote-control`).
 3. Flame stops after at most 10 s of fire, and never fires more than 10 s in
    any 13 s window. There is no fixed cooldown: releasing early books only the
    fire that actually happened, and the next hold gets whatever budget is left.
-   CO₂ stops after at most 4 s; cancelling it early keeps the original reserved
+   CO₂ stops after at most 6 s; cancelling it early keeps the original reserved
    5 s cooldown. A new press is always required. The page shows when each
    fixture is ready (flame: at least 1 s of fire available).
 4. **Disable controls** clears overrides; **Disarm pyro** cancels pyro output.
