@@ -92,7 +92,7 @@ duration = 0.5
 #   MK-C09 CO2        d400      400  (jet = 400)
 #   PAR par1          A010       10  (CO2 moved to d400 to free the low block)
 #   PAR par2          A020       20
-#   MK-F01 fogger     d300      300  (fog = 300; on the chain as of 2026-10-23)
+#   MK-F01 fogger     A305      305  (fog = 305; stuck on A305 as of 2026-10-31)
 #
 # The phase looks keep fog at 0 here; run it from the test console's fog
 # slider when you mean to.
@@ -110,7 +110,7 @@ pyro = true
 position = [0.0, -0.5]
 
 [fixtures.fogger]
-address = 300
+address = 305
 channels = { fog = 0, red = 1, green = 2, blue = 3, strobe = 4, auto = 5, auto_speed = 6 }
 position = [0.0, 0.0]
 
