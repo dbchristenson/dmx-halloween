@@ -111,6 +111,8 @@ class FlameConfig:
     imminent: list[str] = field(default_factory=list)
     rest: tuple[float, float] = (1.0, 3.0)
     clear_before_co2: float = 1.5
+    active: list[str] = field(default_factory=list)  # periodic flame in active
+    active_rest: tuple[float, float] = (8.0, 15.0)
 
     @classmethod
     def from_config(cls, raw: dict) -> "FlameConfig":
@@ -129,19 +131,25 @@ class FlameConfig:
         rest = tuple(float(x) for x in imminent.get("rest", (1.0, 3.0)))
         if len(rest) != 2 or not 0 <= rest[0] <= rest[1]:
             raise ValueError("[flame.imminent] rest must be [min, max] seconds")
+        active = raw.get("active", {})
+        active_rest = tuple(float(x) for x in active.get("rest", (8.0, 15.0)))
+        if len(active_rest) != 2 or not 0 <= active_rest[0] <= active_rest[1]:
+            raise ValueError("[flame.active] rest must be [min, max] seconds")
         cfg = cls(
             timing=timing,
             transitions=transitions,
             imminent=list(imminent.get("patterns", [])),
             rest=rest,
             clear_before_co2=float(raw.get("clear_before_co2", 1.5)),
+            active=list(active.get("patterns", [])),
+            active_rest=active_rest,
         )
         for pattern in cfg.patterns():
             parse_pattern(pattern, timing)
         return cfg
 
     def patterns(self) -> list[str]:
-        return [p for pool in self.transitions.values() for p in pool] + self.imminent
+        return [p for pool in self.transitions.values() for p in pool] + self.imminent + self.active
 
     def check_finale(self, lead: float, imminent_duration: float, first_co2: float) -> None:
         """Every finale must fit inside imminent and still clear the first
@@ -209,6 +217,10 @@ class FlamePlanner:
         if finale:
             shots.append(finale)
         return shots
+
+    def next_active(self, now: float) -> Shot | None:
+        """One [flame.active] pattern, a random rest from now."""
+        return self._shot("active", self.config.active, now + self.rng.uniform(*self.config.active_rest))
 
     def _shot(self, key: str, pool: list[str] | None, start: float) -> Shot | None:
         if not pool:

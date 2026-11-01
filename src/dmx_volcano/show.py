@@ -61,6 +61,9 @@ def build_phase_config(raw: dict) -> PhaseConfig:
     )
 
 
+
+FOG_SPRAY = (250, 350)  # emergency: drifting fogger address, see tick()
+
 class SimClock:
     """Virtual show clock, sim mode only: fast-forward validates dwell
     distributions in minutes instead of hours. The frame loop still paces at
@@ -209,6 +212,16 @@ class ShowEngine:
                 self.log.write("flame_pattern", source=shot.source, pattern=shot.pattern,
                                pulses=shot.pulses, granted=False, cancelled=True)
             self._flame_plan = []
+        if (
+            phase is Phase.ACTIVE and not self._flame_plan and not self._flame_live
+            and not self.machine.hold and not self.machine.paused
+            and not (self.console is not None and self.console.enabled)
+        ):
+            # Periodic flame through the active phase; a phase change replaces
+            # the plan above, so a pending active shot never leaks out.
+            shot = self.flame.next_active(now)
+            if shot is not None:
+                self._flame_plan = [shot]
         while self._flame_plan and self._flame_plan[0].start <= now:
             self._fire_shot(self._flame_plan.pop(0), now)
         self._flame_live = [
@@ -265,6 +278,14 @@ class ShowEngine:
                 self._start_remote_hold, self._stop_remote_hold, FLAME_ARM_LEAD,
             )
         self.overlay.apply(self.universe, now)
+        # EMERGENCY 2026-10-31: the wet fogger's address drifts around the
+        # 300s. Mirror its fog level onto every channel 250-350 so it fires
+        # wherever it lands. Nothing else lives in that block (pyro is
+        # 200/201/400 and is still clamped below).
+        if "fogger" in self.rig.fixtures:
+            fog = self.universe[self.rig["fogger"].channel("fog")]
+            for ch in range(FOG_SPRAY[0], FOG_SPRAY[1] + 1):
+                self.universe[ch] = fog
         frame = bytearray(self.universe.as_bytes())
         self.gate.clamp(frame, now)
         wire = bytes(frame)

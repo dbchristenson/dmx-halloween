@@ -281,6 +281,11 @@ clear_before_co2 = 1.5   # the finale ends this long before the first CO2 cue
 patterns = ["-.-.-.", "..--..-", "-..-.-.", "---..", ".-.-.-"]
 rest = [0.5, 1.5]        # random pause between patterns, seconds
 
+# Active's own flame: one pattern every `rest` seconds while active runs.
+[flame.active]
+patterns = ["-.-", "..-", ".-.", "--", "-..-"]
+rest = [6.0, 12.0]
+
 # --- Eruption cue timeline ----------------------------------------------
 # t = seconds from eruption start. The eruption is CO2 + fog only. CO2 cues
 # must respect the safety gate (<=6s bursts, >=5s from one burst's end to
