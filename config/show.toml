@@ -332,7 +332,7 @@ file = [
 #   par1..par6        A010..A060  10, 20 … 60  (7ch mode; 10-channel blocks)
 #   caldera_left      A100      100  (inside the crater, back-left)
 #   caldera_right     A110      110  (inside the crater, back-right)
-#   MK-F01 fogger     A305      305  (305-311, 7ch; stuck on A305 as of 2026-10-31)
+#   MK-F01 fogger     d306      306  (306-312, 7ch; moved to d306 as of 2026-10-31)
 
 [fixtures.flame]
 address = 200
@@ -347,7 +347,7 @@ pyro = true
 position = [0.0, -0.5]
 
 [fixtures.fogger]
-address = 305
+address = 306
 # MK-F01, 7ch per the MOKA product page: fog, R, G, B, LED strobe, LED
 # autorun, autorun speed. Value ranges are not published; strobe/autorun are
 # assumed off at 0 (the engine leaves them at 0) — confirm on the bench.
