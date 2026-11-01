@@ -269,17 +269,17 @@ clear_before_co2 = 1.5   # the finale ends this long before the first CO2 cue
 # Fired at the start of the new phase, more flame the nearer the eruption.
 # "imminent->eruption" is the finale: it plays at the END of imminent.
 [flame.transitions]
-"dormant->active"    = ["-..-", "-.-", ".-."]
+"dormant->active"    = ["-..-.-", "-.-..-", ".-.-.."]
 "active->dormant"    = ["."]                             # a fizzle: one weak pop
-"active->imminent"   = [".--..-", "-.-.--", "--..--"]
-"dormant->imminent"  = [".--..-", "-.-.--", "--..--"]    # manual trigger
-"imminent->eruption" = ["...---", "-.-.--"]
-"eruption->dormant"  = ["-.-", "--.", ".--"]             # the aftermath, 10s after CO2
+"active->imminent"   = [".--..-.-", "-.-.--..", "--..--.-"]
+"dormant->imminent"  = [".--..-.-", "-.-.--..", "--..--.-"]    # manual trigger
+"imminent->eruption" = ["...---...", "-.-.--.-."]
+"eruption->dormant"  = ["-.-..", "--.-.", ".--.."]             # the aftermath, 10s after CO2
 
 # Imminent's own flame, packed between its entry pattern and the finale.
 [flame.imminent]
-patterns = ["-.-.", "..--..", "-..-.-", "---"]
-rest = [1.0, 2.5]        # random pause between patterns, seconds
+patterns = ["-.-.-.", "..--..-", "-..-.-.", "---..", ".-.-.-"]
+rest = [0.5, 1.5]        # random pause between patterns, seconds
 
 # --- Eruption cue timeline ----------------------------------------------
 # t = seconds from eruption start. The eruption is CO2 + fog only. CO2 cues
